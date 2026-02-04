@@ -25,7 +25,7 @@ interface UsePhotoPickerReturn {
 }
 
 export function usePhotoPicker(options: UsePhotoPickerOptions = {}): UsePhotoPickerReturn {
-  const { maxPhotos = 6, aspect = [3, 4], quality = 0.8 } = options;
+  const { aspect = [3, 4], quality = 0.8 } = options;
 
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
 
@@ -49,7 +49,7 @@ export function usePhotoPicker(options: UsePhotoPickerOptions = {}): UsePhotoPic
     if (!result.canceled && result.assets[0]) {
       hapticButtonPress();
       const asset = result.assets[0];
-      return { uri: asset.uri, base64: asset.base64, mimeType: asset.mimeType };
+      return { uri: asset.uri, base64: asset.base64 ?? undefined, mimeType: asset.mimeType ?? undefined };
     }
 
     return null;
@@ -61,7 +61,7 @@ export function usePhotoPicker(options: UsePhotoPickerOptions = {}): UsePhotoPic
     const mimeType = typeof image === "string" ? "image/jpeg" : image.mimeType || "image/jpeg";
     let base64 = typeof image === "string" ? undefined : image.base64;
     if (!base64) {
-      base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      base64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
     }
 
     const base64ToUint8Array = (data: string) => {

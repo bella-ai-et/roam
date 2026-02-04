@@ -9,13 +9,18 @@ import { GlassButton } from "@/components/glass";
 import { useAppTheme } from "@/lib/theme";
 import { getOnboardingData, resetOnboardingData } from "@/lib/onboardingState";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { hapticSuccess, hapticError } from "@/lib/haptics";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 export default function CompleteScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const { userId: clerkId } = useAuth();
   const createProfile = useMutation(api.users.createProfile);
+  const updateProfile = useMutation(api.users.updateProfile);
+  const updateRoute = useMutation(api.users.updateRoute);
+  const { currentUser } = useCurrentUser();
   
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -35,11 +40,14 @@ export default function CompleteScreen() {
   }, [status]);
 
   const submitProfile = async () => {
+    let isEditing = false;
     try {
       setStatus("loading");
       setErrorMsg(null);
       
       const data = getOnboardingData();
+      isEditing = data.editing === true;
+      const targetUserId = (data.profileId || currentUser?._id) as Id<"users"> | undefined;
       console.log("Submitting onboarding data:", JSON.stringify(data, null, 2));
       
       if (!clerkId) throw new Error("No authentication found");
@@ -55,25 +63,48 @@ export default function CompleteScreen() {
       // Clean undefined fields if necessary, or let convex handle optional ones
       // We assume data is valid based on previous screen checks
       
-      await createProfile({
-        clerkId,
-        name: data.name,
-        dateOfBirth: data.dateOfBirth,
-        gender: data.gender,
-        photos: data.photos || [],
-        interests: data.interests || [],
-        lookingFor: data.lookingFor || [],
-        vanType: data.vanType,
-        vanBuildStatus: data.vanBuildStatus,
-        vanVerified: false, // Default to false until verified
-        vanPhotoUrl: data.vanPhotoUrl,
-        currentRoute: data.currentRoute,
-      });
+      if (isEditing) {
+        if (!targetUserId) {
+          throw new Error("No profile found to update");
+        }
+        await updateProfile({
+          userId: targetUserId,
+          name: data.name,
+          photos: data.photos || [],
+          interests: data.interests || [],
+          lookingFor: data.lookingFor || [],
+          vanType: data.vanType,
+          vanBuildStatus: data.vanBuildStatus,
+          vanPhotoUrl: data.vanPhotoUrl,
+        });
+
+        if (data.currentRoute && data.currentRoute.length > 0) {
+          await updateRoute({
+            userId: targetUserId,
+            route: data.currentRoute,
+          });
+        }
+      } else {
+        await createProfile({
+          clerkId,
+          name: data.name,
+          dateOfBirth: data.dateOfBirth,
+          gender: data.gender,
+          photos: data.photos || [],
+          interests: data.interests || [],
+          lookingFor: data.lookingFor || [],
+          vanType: data.vanType,
+          vanBuildStatus: data.vanBuildStatus,
+          vanVerified: false,
+          vanPhotoUrl: data.vanPhotoUrl,
+          currentRoute: data.currentRoute,
+        });
+      }
 
       setStatus("success");
       hapticSuccess();
     } catch (err: any) {
-      console.error("Profile creation failed:", err);
+      console.error(isEditing ? "Profile update failed:" : "Profile creation failed:", err);
       setStatus("error");
       setErrorMsg(err.message || "Something went wrong.");
       hapticError();

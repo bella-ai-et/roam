@@ -37,6 +37,8 @@ export const updateProfile = mutation({
   args: { 
     userId: v.id("users"), 
     name: v.optional(v.string()), 
+    dateOfBirth: v.optional(v.number()),
+    gender: v.optional(v.string()),
     bio: v.optional(v.string()), 
     photos: v.optional(v.array(v.string())), 
     interests: v.optional(v.array(v.string())), 

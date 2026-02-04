@@ -1,6 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 
 export interface OnboardingData {
+  editing?: boolean;
+  profileId?: string;
   vanPhotoUrl?: string;
   name: string;
   dateOfBirth: number; // timestamp

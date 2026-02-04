@@ -26,9 +26,7 @@ export default function AppLayout() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={!hasProfile}>
-        <Stack.Screen name="onboarding" />
-      </Stack.Protected>
+      <Stack.Screen name="onboarding" />
       <Stack.Protected guard={hasProfile}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
