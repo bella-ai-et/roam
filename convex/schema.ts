@@ -37,4 +37,13 @@ export default defineSchema({
   })
     .index("by_user1", ["user1Id"])
     .index("by_user2", ["user2Id"]),
+  messages: defineTable({
+    matchId: v.id("matches"),
+    senderId: v.id("users"),
+    content: v.string(),
+    createdAt: v.number(),
+    read: v.boolean(),
+  })
+    .index("by_match", ["matchId"])
+    .index("by_match_created", ["matchId", "createdAt"]),
 });

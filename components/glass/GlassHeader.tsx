@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   sideContent: {
-    width: 44,
+    minWidth: 44,
     alignItems: "center",
     justifyContent: "center",
   },

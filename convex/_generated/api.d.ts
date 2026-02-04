@@ -9,6 +9,7 @@
  */
 
 import type * as files from "../files.js";
+import type * as messages from "../messages.js";
 import type * as routeMatching from "../routeMatching.js";
 import type * as swipes from "../swipes.js";
 import type * as users from "../users.js";
@@ -21,6 +22,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   files: typeof files;
+  messages: typeof messages;
   routeMatching: typeof routeMatching;
   swipes: typeof swipes;
   users: typeof users;
