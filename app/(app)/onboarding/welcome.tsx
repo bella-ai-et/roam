@@ -1,148 +1,118 @@
-import { useUser } from "@clerk/clerk-expo";
-import { useMutation } from "convex/react";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import { Text, View, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
-import { api } from "@/convex/_generated/api";
-import { useAppTheme } from "@/lib/theme";
-import { AdaptiveGlassView } from "@/lib/glass";
+import React from "react";
+import { Text, View, StyleSheet, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function WelcomeScreen() {
-  const { user } = useUser();
-  const createProfile = useMutation(api.users.createProfile);
-  const { colors, isDark } = useAppTheme();
-  
-  const [name, setName] = useState(user?.fullName || "");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleCreateProfile = async () => {
-    if (!user?.id) return;
-    if (!name.trim()) {
-      setError("Please enter your name");
-      return;
-    }
-
-    setIsSubmitting(true);
-    setError("");
-
-    try {
-      // Phase 0: Create with minimal defaults to get to tabs
-      await createProfile({
-        clerkId: user.id,
-        name: name,
-        dateOfBirth: Date.now(), // Default to today for now
-        gender: "prefer_not_to_say",
-        photos: [],
-        interests: [],
-        lookingFor: [],
-        vanVerified: false,
-      });
-      // Navigation is handled automatically by _layout.tsx reacting to profile existence
-    } catch (err) {
-      console.error(err);
-      setError("Failed to create profile. Please try again.");
-      setIsSubmitting(false);
-    }
-  };
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   return (
     <LinearGradient
-      colors={isDark ? ["#0F0F0F", "#1A1A1A"] : ["#F5F3F0", "#FFFFFF"]}
+      colors={["#E8724A", "#D45A2E", "#0F0F0F"]}
+      locations={[0, 0.4, 1]}
       style={styles.container}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
-      >
-        <AdaptiveGlassView
-            intensity={30}
-            glassEffectStyle="prominent"
-            style={[styles.card, { borderColor: colors.outline }]}
+      <View style={styles.overlay} />
+
+      <View style={[styles.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
+        <Ionicons name="location" size={48} color="white" style={styles.icon} />
+        
+        <Text style={styles.title}>Roam</Text>
+        
+        <Text style={styles.subtitle}>
+          Find your people{"\n"}on the road
+        </Text>
+
+        <View style={styles.featureList}>
+          <FeatureItem text="Match by overlapping travel routes" />
+          <FeatureItem text="Connect with verified van lifers" />
+          <FeatureItem text="Get help building your van" />
+        </View>
+
+        <View style={styles.spacer} />
+
+        <Pressable
+          style={styles.button}
+          onPress={() => router.push("/(app)/onboarding/verification")}
         >
-          <View style={styles.header}>
-            <Ionicons name="sparkles" size={48} color={colors.primary} />
-            <Text style={[styles.title, { color: colors.onSurface }]}>Welcome to Roam</Text>
-            <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
-              Let's get your profile set up so you can start exploring.
-            </Text>
-          </View>
-
-          {error ? (
-            <View style={[styles.errorContainer, { backgroundColor: colors.error + "20" }]}>
-              <Ionicons name="alert-circle" size={20} color={colors.error} />
-              <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
-            </View>
-          ) : null}
-
-          <View style={styles.form}>
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>What should we call you?</Text>
-              <TextInput
-                value={name}
-                onChangeText={setName}
-                placeholder="Your Name"
-                placeholderTextColor={colors.onSurfaceVariant + "80"}
-                style={[styles.input, { 
-                  color: colors.onSurface,
-                  backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
-                  borderColor: colors.outline 
-                }]}
-              />
-            </View>
-
-            <TouchableOpacity
-              onPress={handleCreateProfile}
-              disabled={isSubmitting}
-              style={[styles.button, { backgroundColor: colors.primary, opacity: isSubmitting ? 0.7 : 1 }]}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color={colors.onPrimary} />
-              ) : (
-                <Text style={[styles.buttonText, { color: colors.onPrimary }]}>Start Exploring</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </AdaptiveGlassView>
-      </KeyboardAvoidingView>
+          <Text style={styles.buttonText}>Get Started</Text>
+        </Pressable>
+      </View>
     </LinearGradient>
   );
 }
 
+function FeatureItem({ text }: { text: string }) {
+  return (
+    <View style={styles.featureRow}>
+      <Ionicons name="checkmark-circle" size={24} color="#4CD964" />
+      <Text style={styles.featureText}>{text}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  keyboardView: { flex: 1, justifyContent: "center", padding: 20 },
-  card: { borderRadius: 24, padding: 24, overflow: "hidden", borderWidth: 1 },
-  header: { alignItems: "center", marginBottom: 32 },
-  title: { fontSize: 28, fontWeight: "bold", marginTop: 16, marginBottom: 8, textAlign: 'center' },
-  subtitle: { fontSize: 16, textAlign: "center", lineHeight: 24 },
-  form: { gap: 20 },
-  inputGroup: { gap: 8 },
-  label: { fontSize: 14, fontWeight: "500", marginLeft: 4 },
-  input: {
-    height: 50,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    borderWidth: 1,
+  container: {
+    flex: 1,
   },
-  button: {
-    height: 50,
-    borderRadius: 25,
-    justifyContent: "center",
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.15)",
+  },
+  content: {
+    flex: 1,
     alignItems: "center",
-    marginTop: 8,
+    paddingHorizontal: 32,
   },
-  buttonText: { fontSize: 16, fontWeight: "bold" },
-  errorContainer: {
+  icon: {
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 56,
+    fontWeight: "800",
+    color: "white",
+    letterSpacing: -2,
+    marginBottom: 16,
+  },
+  subtitle: {
+    fontSize: 22,
+    color: "rgba(255,255,255,0.8)",
+    textAlign: "center",
+    lineHeight: 32,
+    marginBottom: 48,
+  },
+  featureList: {
+    gap: 14,
+    width: "100%",
+  },
+  featureRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 16,
-    gap: 8,
+    gap: 12,
   },
-  errorText: { flex: 1, fontSize: 14 },
+  featureText: {
+    fontSize: 17,
+    color: "white",
+    fontWeight: "500",
+  },
+  spacer: {
+    flex: 1,
+  },
+  button: {
+    backgroundColor: "white",
+    width: "100%",
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  buttonText: {
+    color: "#E8724A",
+    fontSize: 17,
+    fontWeight: "700",
+  },
 });

@@ -1,28 +1,26 @@
 import { useSignIn } from "@clerk/clerk-expo";
 import { Link, useRouter } from "expo-router";
-import { Text, View, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
-import React from "react";
-import { AdaptiveGlassView } from "@/lib/glass";
-import { useAppTheme } from "@/lib/theme";
+import { Text, View, StyleSheet, TextInput, Pressable, KeyboardAvoidingView, Platform } from "react-native";
+import React, { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { GlassButton } from "@/components/glass";
 
 export default function SignInScreen() {
   const { signIn, setActive, isLoaded } = useSignIn();
   const router = useRouter();
-  const { colors, isDark } = useAppTheme();
 
-  const [emailAddress, setEmailAddress] = React.useState("");
-  const [password, setPassword] = React.useState("");
-  const [isSigningIn, setIsSigningIn] = React.useState(false);
-  const [error, setError] = React.useState("");
+  const [emailAddress, setEmailAddress] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [error, setError] = useState("");
+
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
 
   const onSignInPress = async () => {
     if (!isLoaded) return;
-    if (!emailAddress || !password) {
-        setError("Please enter both email and password");
-        return;
-    }
     
     setIsSigningIn(true);
     setError("");
@@ -31,7 +29,12 @@ export default function SignInScreen() {
         identifier: emailAddress,
         password,
       });
-      await setActive({ session: completeSignIn.createdSessionId });
+      if (completeSignIn.status === "complete") {
+        await setActive({ session: completeSignIn.createdSessionId });
+      } else {
+        // Handle other statuses if needed (e.g. MFA)
+        console.log("Sign in status:", completeSignIn.status);
+      }
     } catch (err: any) {
       console.error(JSON.stringify(err, null, 2));
       setError(err.errors?.[0]?.message || "Failed to sign in");
@@ -39,132 +42,205 @@ export default function SignInScreen() {
     }
   };
 
+  const isFormValid = emailAddress.length > 0 && password.length >= 6;
+
   return (
     <LinearGradient
-      colors={isDark ? ["#0F0F0F", "#1A1A1A"] : ["#F5F3F0", "#FFFFFF"]}
+      colors={["#0F0F0F", "#1A1510", "#0F0F0F"]}
       style={styles.container}
     >
+      {/* Warm glow */}
+      <View style={styles.glow} />
+
       <KeyboardAvoidingView 
         behavior={Platform.OS === "ios" ? "padding" : "height"} 
-        style={styles.keyboardView}
+        style={styles.content}
       >
-        <AdaptiveGlassView 
-            intensity={30} 
-            glassEffectStyle="prominent"
-            style={[styles.card, { borderColor: colors.outline }]}
-        >
-          <View style={styles.header}>
-            <Ionicons name="location" size={48} color={colors.primary} />
-            <Text style={[styles.title, { color: colors.onSurface }]}>Welcome Back</Text>
-            <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
-              Sign in to continue your journey
-            </Text>
-          </View>
+        {/* Logo Section */}
+        <View style={styles.logoSection}>
+          <LinearGradient
+            colors={["#E8724A", "#D45A2E"]}
+            style={styles.logoBackground}
+          >
+            <Ionicons name="location" size={40} color="white" />
+          </LinearGradient>
+          <Text style={styles.appName}>Roam</Text>
+          <Text style={styles.tagline}>Find your people on the road</Text>
+        </View>
 
+        {/* Form */}
+        <View style={styles.form}>
           {error ? (
-            <View style={[styles.errorContainer, { backgroundColor: colors.error + "20" }]}>
-                <Ionicons name="alert-circle" size={20} color={colors.error} />
-                <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
+            <View style={styles.errorContainer}>
+              <Ionicons name="alert-circle-outline" size={20} color="#FF3B30" />
+              <Text style={styles.errorText}>{error}</Text>
             </View>
           ) : null}
 
-          <View style={styles.form}>
-            <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>Email</Text>
-                <TextInput
-                    autoCapitalize="none"
-                    value={emailAddress}
-                    placeholder="vanlife@roam.com"
-                    placeholderTextColor={colors.onSurfaceVariant + "80"}
-                    onChangeText={setEmailAddress}
-                    style={[styles.input, { 
-                        color: colors.onSurface,
-                        backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
-                        borderColor: colors.outline 
-                    }]}
-                />
-            </View>
-
-            <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>Password</Text>
-                <TextInput
-                    value={password}
-                    placeholder="••••••••"
-                    placeholderTextColor={colors.onSurfaceVariant + "80"}
-                    secureTextEntry={true}
-                    onChangeText={setPassword}
-                    style={[styles.input, { 
-                        color: colors.onSurface,
-                        backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
-                        borderColor: colors.outline 
-                    }]}
-                />
-            </View>
-
-            <TouchableOpacity 
-                onPress={onSignInPress} 
-                disabled={isSigningIn}
-                style={[styles.button, { backgroundColor: colors.primary, opacity: isSigningIn ? 0.7 : 1 }]}
-            >
-                {isSigningIn ? (
-                    <ActivityIndicator color={colors.onPrimary} />
-                ) : (
-                    <Text style={[styles.buttonText, { color: colors.onPrimary }]}>Sign In</Text>
-                )}
-            </TouchableOpacity>
-
-            <View style={styles.footer}>
-                <Text style={[styles.footerText, { color: colors.onSurfaceVariant }]}>
-                    Don't have an account?
-                </Text>
-                <Link href="/sign-up" asChild>
-                    <TouchableOpacity>
-                        <Text style={[styles.link, { color: colors.primary }]}>Sign Up</Text>
-                    </TouchableOpacity>
-                </Link>
-            </View>
+          <View style={[
+            styles.inputContainer,
+            emailFocused && styles.inputFocused
+          ]}>
+            <Ionicons 
+              name="mail-outline" 
+              size={20} 
+              color={emailFocused ? "#E8724A" : "#666"} 
+            />
+            <TextInput
+              autoCapitalize="none"
+              value={emailAddress}
+              placeholder="Email"
+              placeholderTextColor="#666"
+              onChangeText={setEmailAddress}
+              onFocus={() => setEmailFocused(true)}
+              onBlur={() => setEmailFocused(false)}
+              style={styles.input}
+            />
           </View>
-        </AdaptiveGlassView>
+
+          <View style={[
+            styles.inputContainer,
+            passwordFocused && styles.inputFocused
+          ]}>
+            <Ionicons 
+              name="lock-closed-outline" 
+              size={20} 
+              color={passwordFocused ? "#E8724A" : "#666"} 
+            />
+            <TextInput
+              value={password}
+              placeholder="Password"
+              placeholderTextColor="#666"
+              secureTextEntry={!showPassword}
+              onChangeText={setPassword}
+              onFocus={() => setPasswordFocused(true)}
+              onBlur={() => setPasswordFocused(false)}
+              style={styles.input}
+            />
+            <Pressable onPress={() => setShowPassword(!showPassword)}>
+              <Ionicons 
+                name={showPassword ? "eye-outline" : "eye-off-outline"} 
+                size={20} 
+                color="#666" 
+              />
+            </Pressable>
+          </View>
+
+          <GlassButton
+            title={isSigningIn ? "Signing in..." : "Sign In"}
+            onPress={onSignInPress}
+            loading={isSigningIn}
+            disabled={!isFormValid}
+            style={styles.button}
+          />
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Don't have an account? </Text>
+            <Link href="/(auth)/sign-up" asChild>
+              <Pressable>
+                <Text style={styles.linkText}>Sign Up</Text>
+              </Pressable>
+            </Link>
+          </View>
+        </View>
       </KeyboardAvoidingView>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  keyboardView: { flex: 1, justifyContent: "center", padding: 20 },
-  card: { borderRadius: 24, padding: 24, overflow: "hidden", borderWidth: 1 },
-  header: { alignItems: "center", marginBottom: 32 },
-  title: { fontSize: 28, fontWeight: "bold", marginTop: 16, marginBottom: 8 },
-  subtitle: { fontSize: 16, textAlign: "center" },
-  form: { gap: 20 },
-  inputGroup: { gap: 8 },
-  label: { fontSize: 14, fontWeight: "500", marginLeft: 4 },
-  input: { 
-    height: 50, 
-    borderRadius: 12, 
-    paddingHorizontal: 16, 
-    fontSize: 16,
-    borderWidth: 1,
+  container: {
+    flex: 1,
   },
-  button: {
-    height: 50,
-    borderRadius: 25,
+  glow: {
+    position: "absolute",
+    top: -100,
+    alignSelf: "center",
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: "rgba(232,114,74,0.15)",
+  },
+  content: {
+    flex: 1,
     justifyContent: "center",
-    alignItems: "center",
-    marginTop: 8,
+    padding: 24,
   },
-  buttonText: { fontSize: 16, fontWeight: "bold" },
-  footer: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, marginTop: 16 },
-  footerText: { fontSize: 14 },
-  link: { fontSize: 14, fontWeight: "bold" },
+  logoSection: {
+    alignItems: "center",
+    marginBottom: 48,
+  },
+  logoBackground: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+  },
+  appName: {
+    fontSize: 36,
+    fontWeight: "800",
+    color: "white",
+    letterSpacing: -1,
+    marginBottom: 8,
+  },
+  tagline: {
+    fontSize: 15,
+    color: "#777",
+  },
+  form: {
+    gap: 16,
+  },
   errorContainer: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "rgba(255,59,48,0.1)",
     padding: 12,
     borderRadius: 12,
-    marginBottom: 16,
     gap: 8,
   },
-  errorText: { flex: 1, fontSize: 14 },
+  errorText: {
+    color: "#FF3B30",
+    fontSize: 14,
+    flex: 1,
+  },
+  inputContainer: {
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  inputFocused: {
+    borderColor: "#E8724A",
+    backgroundColor: "rgba(232,114,74,0.08)",
+  },
+  input: {
+    flex: 1,
+    color: "white",
+    fontSize: 16,
+    height: "100%",
+  },
+  button: {
+    marginTop: 8,
+  },
+  footer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 24,
+  },
+  footerText: {
+    color: "#777",
+    fontSize: 15,
+  },
+  linkText: {
+    color: "#E8724A",
+    fontSize: 15,
+    fontWeight: "600",
+  },
 });

@@ -20,10 +20,16 @@ export const createProfile = mutation({
     vanType: v.optional(v.string()), 
     vanBuildStatus: v.optional(v.string()), 
     vanVerified: v.boolean(), 
-    vanPhotoUrl: v.optional(v.string()), 
+    vanPhotoUrl: v.optional(v.string()),
+    currentRoute: v.optional(v.array(v.object({ 
+      location: v.object({ latitude: v.number(), longitude: v.number(), name: v.string() }), 
+      arrivalDate: v.string(), 
+      departureDate: v.string(), 
+      notes: v.optional(v.string()), 
+    }))),
   }, 
   handler: async (ctx, args) => { 
-    return await ctx.db.insert("users", { ...args, bio: undefined, currentRoute: undefined }); 
+    return await ctx.db.insert("users", { ...args, bio: undefined }); 
   }, 
 }); 
 
