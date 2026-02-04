@@ -30,6 +30,8 @@ export default function AppLayout() {
       <Stack.Protected guard={hasProfile}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="community/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="community/create" options={{ headerShown: false }} />
         <Stack.Screen name="profile/[id]" options={{ presentation: "modal" }} />
       </Stack.Protected>
     </Stack>

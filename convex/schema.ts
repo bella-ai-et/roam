@@ -46,4 +46,26 @@ export default defineSchema({
   })
     .index("by_match", ["matchId"])
     .index("by_match_created", ["matchId", "createdAt"]),
+  posts: defineTable({
+    authorId: v.id("users"),
+    title: v.string(),
+    content: v.string(),
+    category: v.string(),
+    vanType: v.optional(v.string()),
+    photos: v.array(v.string()),
+    upvotes: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_category", ["category"])
+    .index("by_author", ["authorId"]),
+  replies: defineTable({
+    postId: v.id("posts"),
+    authorId: v.id("users"),
+    content: v.string(),
+    photos: v.array(v.string()),
+    upvotes: v.number(),
+    isHelpful: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_post", ["postId"]),
 });
