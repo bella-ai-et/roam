@@ -20,6 +20,9 @@ export default defineSchema({
       arrivalDate: v.string(), 
       departureDate: v.string(), 
       notes: v.optional(v.string()), 
+      role: v.optional(v.string()),
+      intent: v.optional(v.string()),
+      destinationType: v.optional(v.string()),
     }))), 
   }).index("by_clerkId", ["clerkId"]), 
   swipes: defineTable({ 

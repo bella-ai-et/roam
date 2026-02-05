@@ -1,22 +1,26 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useMutation } from "convex/react";
 
 import { GlassHeader, GlassButton } from "@/components/glass";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useAppTheme } from "@/lib/theme";
 import { usePhotoPicker } from "@/hooks/usePhotoPicker";
-import { setOnboardingField } from "@/lib/onboardingState";
 import { hapticSelection } from "@/lib/haptics";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { api } from "@/convex/_generated/api";
 
 export default function VerificationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const { pickImage, uploadPhoto } = usePhotoPicker({ aspect: [3, 4], quality: 0.8 });
+  const { currentUser } = useCurrentUser();
+  const updateProfile = useMutation(api.users.updateProfile);
   const [uploading, setUploading] = useState(false);
   
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -28,20 +32,28 @@ export default function VerificationScreen() {
       if (!image) return;
       const storageId = await uploadPhoto(image);
       setPhotoUrl(image.uri);
-      setOnboardingField("vanPhotoUrl", storageId);
+      if (currentUser?._id) {
+        await updateProfile({ userId: currentUser._id, vanPhotoUrl: storageId });
+      }
       hapticSelection();
+    } catch {
+      Alert.alert("Error", "Failed to upload van photo.");
     } finally {
       setUploading(false);
     }
   };
 
   const handleContinue = () => {
-    // Navigate to next screen (profile info)
-    // For now we'll push to a placeholder or the next logical step
-    // Assuming next step is profile info which we haven't built yet,
-    // but the instruction says "navigate to profile screen"
-    router.push("/(app)/onboarding/profile"); 
+    router.push("/(app)/onboarding/looking-for"); 
   };
+
+  if (currentUser === undefined) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -60,7 +72,7 @@ export default function VerificationScreen() {
           { paddingTop: insets.top + 60, paddingBottom: 100 }
         ]}
       >
-        <ProgressBar current={1} total={8} />
+        <ProgressBar current={2} total={8} />
 
         <View style={styles.badgeRow}>
           <Ionicons name="shield-checkmark-outline" size={20} color="#4CD964" />

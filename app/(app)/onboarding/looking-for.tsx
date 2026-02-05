@@ -1,23 +1,31 @@
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useMutation } from "convex/react";
 
 import { GlassHeader, GlassButton, GlassOption } from "@/components/glass";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useAppTheme } from "@/lib/theme";
-import { setOnboardingField, getOnboardingData } from "@/lib/onboardingState";
 import { hapticSelection } from "@/lib/haptics";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { api } from "@/convex/_generated/api";
 
 export default function LookingForScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
+  const { currentUser } = useCurrentUser();
+  const updateProfile = useMutation(api.users.updateProfile);
+  const [saving, setSaving] = useState(false);
 
-  // Initial state from store
-  const existingData = getOnboardingData();
-  const [lookingFor, setLookingFor] = useState<string[]>(existingData.lookingFor || []);
+  const [lookingFor, setLookingFor] = useState<string[]>(currentUser?.lookingFor || []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    setLookingFor(currentUser.lookingFor ?? []);
+  }, [currentUser]);
 
   const toggleSelection = (value: string) => {
     setLookingFor(prev => {
@@ -31,14 +39,27 @@ export default function LookingForScreen() {
     hapticSelection();
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (lookingFor.length === 0) return;
-    
-    setOnboardingField("lookingFor", lookingFor);
-    // Navigate to next screen - assuming interests is next based on typical flow
-    // or placeholder for now until next instruction
-    router.push("/(app)/onboarding/interests"); 
+    if (!currentUser?._id) return;
+    setSaving(true);
+    try {
+      await updateProfile({ userId: currentUser._id, lookingFor });
+      router.push("/(app)/onboarding/interests");
+    } catch {
+      Alert.alert("Error", "Failed to save your preferences.");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (currentUser === undefined) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -98,7 +119,8 @@ export default function LookingForScreen() {
         <GlassButton
           title="Continue"
           onPress={handleContinue}
-          disabled={lookingFor.length === 0}
+          disabled={lookingFor.length === 0 || saving}
+          loading={saving}
         />
       </View>
     </View>

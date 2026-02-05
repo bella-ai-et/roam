@@ -1,82 +1,222 @@
 import { useRouter } from "expo-router";
-import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert } from "react-native";
+import React, { useMemo, useState, useEffect } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
-import { format } from "date-fns";
+import { format, parse } from "date-fns";
+import { useMutation } from "convex/react";
 
-import { GlassHeader, GlassButton, GlassInput, GlassDatePicker } from "@/components/glass";
+import { GlassHeader, GlassButton, GlassInput, GlassDatePicker, GlassOption } from "@/components/glass";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useAppTheme } from "@/lib/theme";
-import { setOnboardingField, getOnboardingData, OnboardingData } from "@/lib/onboardingState";
 import { hapticSelection, hapticSuccess, hapticError } from "@/lib/haptics";
 import { AdaptiveGlassView } from "@/lib/glass";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { api } from "@/convex/_generated/api";
+import { Doc } from "@/convex/_generated/dataModel";
 
-type RouteStop = OnboardingData["currentRoute"][0];
+type RouteStop = NonNullable<Doc<"users">["currentRoute"]>[number];
+type RouteIntent = "planned" | "preference";
+type DestinationType = "commute" | "visit" | "work" | "seasonal" | "adventure";
+type StopRole = "origin" | "stop" | "destination";
+
+const routeIntentOptions: {
+  value: RouteIntent;
+  label: string;
+  emoji: string;
+  description: string;
+}[] = [
+  {
+    value: "planned",
+    label: "Planned trip",
+    emoji: "🧭",
+    description: "You have dates and a clear travel plan.",
+  },
+  {
+    value: "preference",
+    label: "Preference",
+    emoji: "🌤️",
+    description: "Flexible, aspirational, or open-ended.",
+  },
+];
+
+const destinationTypeOptions: {
+  value: DestinationType;
+  label: string;
+  emoji: string;
+  description: string;
+}[] = [
+  { value: "commute", label: "Commute", emoji: "🚗", description: "Regular travel between places." },
+  { value: "visit", label: "Visit", emoji: "🏠", description: "Friends, family, or familiar stops." },
+  { value: "work", label: "Work", emoji: "💼", description: "Projects, clients, or gigs." },
+  { value: "seasonal", label: "Seasonal stay", emoji: "🌲", description: "A longer seasonal base." },
+  { value: "adventure", label: "Adventure", emoji: "🏕️", description: "Exploring or new territory." },
+];
 
 export default function RouteScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
+  const { currentUser } = useCurrentUser();
+  const updateRoute = useMutation(api.users.updateRoute);
 
-  const existingData = getOnboardingData();
-  const [stops, setStops] = useState<RouteStop[]>(existingData.currentRoute || []);
+  const existingStops = useMemo(() => currentUser?.currentRoute || [], [currentUser]);
+
+  const [originName, setOriginName] = useState("");
+  const [originCoords, setOriginCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [originArrival, setOriginArrival] = useState<Date | undefined>();
+  const [originDeparture, setOriginDeparture] = useState<Date | undefined>();
+
+  const [destinationName, setDestinationName] = useState("");
+  const [destinationCoords, setDestinationCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [destinationArrival, setDestinationArrival] = useState<Date | undefined>();
+  const [destinationDeparture, setDestinationDeparture] = useState<Date | undefined>();
+
+  const [routeIntent, setRouteIntent] = useState<RouteIntent | "">("");
+  const [destinationType, setDestinationType] = useState<DestinationType | "">("");
+  const [extraStops, setExtraStops] = useState<RouteStop[]>([]);
+
   const [loadingLocation, setLoadingLocation] = useState(false);
-  
-  // Add stop form state
   const [showAddForm, setShowAddForm] = useState(false);
   const [newLocationName, setNewLocationName] = useState("");
   const [newArrival, setNewArrival] = useState<Date | undefined>();
   const [newDeparture, setNewDeparture] = useState<Date | undefined>();
+  const [addingStop, setAddingStop] = useState(false);
+  const [savingRoute, setSavingRoute] = useState(false);
 
   useEffect(() => {
-    // If we have no stops, try to get current location automatically
-    if (stops.length === 0) {
-      getCurrentLocation();
+    if (existingStops.length === 0) return;
+
+    const parseRouteDate = (value?: string) => {
+      if (!value) return undefined;
+      const parsed = parse(value, "MM/dd/yyyy", new Date());
+      if (Number.isNaN(parsed.getTime())) return undefined;
+      return parsed;
+    };
+
+    let originStop = existingStops.find((stop) => stop.role === "origin");
+    let destinationStop = existingStops.find((stop) => stop.role === "destination");
+    const remainingStops = existingStops.filter((stop) => stop !== originStop && stop !== destinationStop);
+
+    if (!originStop && existingStops.length > 1) {
+      originStop = existingStops[0];
     }
-  }, []);
+
+    if (!destinationStop && existingStops.length > 0) {
+      destinationStop = existingStops[existingStops.length - 1];
+    }
+
+    if (originStop && destinationStop && originStop === destinationStop) {
+      originStop = undefined;
+    }
+
+    if (originStop) {
+      setOriginName(originStop.location.name);
+      setOriginCoords({
+        latitude: originStop.location.latitude,
+        longitude: originStop.location.longitude,
+      });
+      setOriginArrival(parseRouteDate(originStop.arrivalDate));
+      setOriginDeparture(parseRouteDate(originStop.departureDate));
+    }
+
+    if (destinationStop) {
+      setDestinationName(destinationStop.location.name);
+      setDestinationCoords({
+        latitude: destinationStop.location.latitude,
+        longitude: destinationStop.location.longitude,
+      });
+      setDestinationArrival(parseRouteDate(destinationStop.arrivalDate));
+      setDestinationDeparture(parseRouteDate(destinationStop.departureDate));
+      if (destinationStop.intent === "planned" || destinationStop.intent === "preference") {
+        setRouteIntent(destinationStop.intent);
+      }
+      if (
+        destinationStop.destinationType === "commute" ||
+        destinationStop.destinationType === "visit" ||
+        destinationStop.destinationType === "work" ||
+        destinationStop.destinationType === "seasonal" ||
+        destinationStop.destinationType === "adventure"
+      ) {
+        setDestinationType(destinationStop.destinationType);
+      }
+    }
+
+    setExtraStops(remainingStops);
+  }, [existingStops]);
+
+  const geocodeLocation = async (name: string) => {
+    try {
+      const results = await Location.geocodeAsync(name);
+      if (results.length > 0) {
+        return {
+          latitude: results[0].latitude,
+          longitude: results[0].longitude,
+        };
+      }
+    } catch (error) {
+      console.log("Geocoding failed", error);
+    }
+    return { latitude: 0, longitude: 0 };
+  };
+
+  const formatReverseGeocode = (
+    item: Location.LocationGeocodedAddress,
+    fallback: string
+  ) => {
+    const rawParts = [
+      item.name,
+      item.street,
+      item.district,
+      item.subregion,
+      item.city,
+      item.region,
+    ].filter(Boolean);
+    const uniqueParts: string[] = [];
+    rawParts.forEach((part) => {
+      if (!uniqueParts.includes(part as string)) {
+        uniqueParts.push(part as string);
+      }
+    });
+    if (uniqueParts.length > 0) {
+      return uniqueParts.join(", ");
+    }
+    return item.country || fallback;
+  };
 
   const getCurrentLocation = async () => {
     setLoadingLocation(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission to access location was denied');
+      if (status !== "granted") {
+        Alert.alert("Permission to access location was denied");
         setLoadingLocation(false);
         return;
       }
 
       const location = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = location.coords;
-      
+
       let locationName = `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`;
-      
+
       try {
         const reverseGeocode = await Location.reverseGeocodeAsync({ latitude, longitude });
         if (reverseGeocode.length > 0) {
-          const { city, region, country } = reverseGeocode[0];
-          locationName = [city, region].filter(Boolean).join(", ") || country || locationName;
+          locationName = formatReverseGeocode(reverseGeocode[0], locationName);
         }
-      } catch (e) {
-        console.log("Reverse geocoding failed", e);
+      } catch (error) {
+        console.log("Reverse geocoding failed", error);
       }
 
       const today = new Date();
       const nextWeek = new Date();
       nextWeek.setDate(today.getDate() + 7);
 
-      const newStop: RouteStop = {
-        location: {
-          latitude,
-          longitude,
-          name: locationName
-        },
-        arrivalDate: format(today, "MM/dd/yyyy"),
-        departureDate: format(nextWeek, "MM/dd/yyyy")
-      };
-
-      setStops([newStop]);
+      setOriginName(locationName);
+      setOriginCoords({ latitude, longitude });
+      setOriginArrival((prev) => prev ?? today);
+      setOriginDeparture((prev) => prev ?? nextWeek);
       hapticSuccess();
     } catch (error) {
       console.log("Error getting location", error);
@@ -86,42 +226,212 @@ export default function RouteScreen() {
     }
   };
 
-  const handleAddStop = () => {
+  const handleAddStop = async () => {
     if (!newLocationName || !newArrival || !newDeparture) {
       hapticError();
       return;
     }
 
+    setAddingStop(true);
+    const trimmedName = newLocationName.trim();
+    const coords = await geocodeLocation(trimmedName);
+
     const newStop: RouteStop = {
       location: {
-        latitude: 0, // Placeholder as we don't have geocoding for manual input yet
-        longitude: 0,
-        name: newLocationName
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        name: trimmedName,
       },
       arrivalDate: format(newArrival, "MM/dd/yyyy"),
-      departureDate: format(newDeparture, "MM/dd/yyyy")
+      departureDate: format(newDeparture, "MM/dd/yyyy"),
+      role: "stop",
     };
 
-    setStops([...stops, newStop]);
+    setExtraStops((prev) => [...prev, newStop]);
     setNewLocationName("");
     setNewArrival(undefined);
     setNewDeparture(undefined);
     setShowAddForm(false);
+    setAddingStop(false);
     hapticSuccess();
   };
 
   const removeStop = (index: number) => {
-    const newStops = [...stops];
-    newStops.splice(index, 1);
-    setStops(newStops);
+    setExtraStops((prev) => prev.filter((_, idx) => idx !== index));
     hapticSelection();
   };
 
-  const handleContinue = () => {
-    if (stops.length === 0) return;
-    setOnboardingField("currentRoute", stops);
-    router.push("/(app)/onboarding/complete"); 
+  const buildStop = async ({
+    name,
+    coords,
+    arrival,
+    departure,
+    role,
+    intent,
+    destinationType: destinationKind,
+  }: {
+    name: string;
+    coords: { latitude: number; longitude: number } | null;
+    arrival: Date | undefined;
+    departure: Date | undefined;
+    role: StopRole;
+    intent?: RouteIntent;
+    destinationType?: DestinationType;
+  }) => {
+    const trimmedName = name.trim();
+    if (!trimmedName || !arrival || !departure) return null;
+    const resolved = coords ?? (await geocodeLocation(trimmedName));
+    return {
+      location: {
+        latitude: resolved.latitude,
+        longitude: resolved.longitude,
+        name: trimmedName,
+      },
+      arrivalDate: format(arrival, "MM/dd/yyyy"),
+      departureDate: format(departure, "MM/dd/yyyy"),
+      role,
+      intent,
+      destinationType: destinationKind,
+    };
   };
+
+  const handleContinue = async () => {
+    const issues: string[] = [];
+    const trimmedOrigin = originName.trim();
+    const trimmedDestination = destinationName.trim();
+
+    if (!trimmedDestination) {
+      issues.push("Add the destination you actually want to go to.");
+    }
+
+    if (!destinationArrival || !destinationDeparture) {
+      issues.push("Add arrival and departure dates for the destination.");
+    }
+
+    if (!routeIntent) {
+      issues.push("Choose whether this route is planned or a preference.");
+    }
+
+    if (!destinationType) {
+      issues.push("Tell us what this destination represents.");
+    }
+
+    if ((originArrival || originDeparture) && !trimmedOrigin) {
+      issues.push("Add a starting location name.");
+    }
+
+    if (trimmedOrigin && (!originArrival || !originDeparture)) {
+      issues.push("Add arrival and departure dates for the starting location.");
+    }
+
+    if (issues.length > 0) {
+      hapticError();
+      Alert.alert("Complete your route", issues.join("\n"));
+      return;
+    }
+
+    setSavingRoute(true);
+    const compiledStops: RouteStop[] = [];
+
+    const originStop = await buildStop({
+      name: trimmedOrigin,
+      coords: originCoords,
+      arrival: originArrival,
+      departure: originDeparture,
+      role: "origin",
+    });
+
+    if (originStop) {
+      compiledStops.push(originStop);
+    }
+
+    compiledStops.push(...extraStops);
+
+    const destinationStop = await buildStop({
+      name: trimmedDestination,
+      coords: destinationCoords,
+      arrival: destinationArrival,
+      departure: destinationDeparture,
+      role: "destination",
+      intent: routeIntent as RouteIntent,
+      destinationType: destinationType as DestinationType,
+    });
+
+    if (destinationStop) {
+      compiledStops.push(destinationStop);
+    }
+
+    if (compiledStops.length === 0) {
+      hapticError();
+      Alert.alert("Add at least one stop to continue.");
+      setSavingRoute(false);
+      return;
+    }
+
+    if (!currentUser?._id) {
+      setSavingRoute(false);
+      return;
+    }
+    try {
+      await updateRoute({ userId: currentUser._id, route: compiledStops });
+      router.push("/(app)/onboarding/complete");
+    } catch {
+      Alert.alert("Error", "Failed to save your route.");
+    } finally {
+      setSavingRoute(false);
+    }
+  };
+
+  const previewStops = useMemo(() => {
+    const list: RouteStop[] = [];
+    if (originName && originArrival && originDeparture) {
+      list.push({
+        location: { latitude: originCoords?.latitude ?? 0, longitude: originCoords?.longitude ?? 0, name: originName },
+        arrivalDate: format(originArrival, "MM/dd/yyyy"),
+        departureDate: format(originDeparture, "MM/dd/yyyy"),
+        role: "origin",
+      });
+    }
+    list.push(...extraStops);
+    if (destinationName && destinationArrival && destinationDeparture) {
+      list.push({
+        location: {
+          latitude: destinationCoords?.latitude ?? 0,
+          longitude: destinationCoords?.longitude ?? 0,
+          name: destinationName,
+        },
+        arrivalDate: format(destinationArrival, "MM/dd/yyyy"),
+        departureDate: format(destinationDeparture, "MM/dd/yyyy"),
+        role: "destination",
+      });
+    }
+    return list;
+  }, [
+    originName,
+    originArrival,
+    originDeparture,
+    originCoords,
+    destinationName,
+    destinationArrival,
+    destinationDeparture,
+    destinationCoords,
+    extraStops,
+  ]);
+
+  const renderStopLabel = (stop: RouteStop, stopNumber: number) => {
+    if (stop.role === "origin") return "Start";
+    if (stop.role === "destination") return "Destination";
+    if (stopNumber <= 1) return "Stop";
+    return `Stop ${stopNumber}`;
+  };
+
+  if (currentUser === undefined) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -134,143 +444,283 @@ export default function RouteScreen() {
         }
       />
 
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={[
-          styles.content, 
-          { paddingTop: insets.top + 60, paddingBottom: 100 }
+          styles.content,
+          { paddingTop: insets.top + 60, paddingBottom: 120 },
         ]}
       >
         <ProgressBar current={6} total={8} />
 
         <Text style={[styles.subtitle, { color: colors.onSurface }]}>
-          Where are you headed?
-        </Text>
-        
-        <Text style={[styles.description, { color: colors.onSurfaceVariant }]}>
-          This is how we find your matches. Add where you are now and where you're going.
+          Tell us the route you actually want
         </Text>
 
-        {/* Current Location / Stops Timeline */}
-        <View style={styles.timelineContainer}>
-          {stops.map((stop, index) => (
-            <View key={index} style={styles.timelineItem}>
-              <View style={styles.timelineLeft}>
-                <View style={[styles.dot, { backgroundColor: colors.primary }]} />
-                {index < stops.length - 1 && (
-                  <View style={[styles.line, { backgroundColor: "rgba(255,255,255,0.1)" }]} />
-                )}
+        <Text style={[styles.description, { color: colors.onSurfaceVariant }]}>
+          We match people based on intent, not just where you happen to be standing.
+        </Text>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Route intent</Text>
+          {routeIntentOptions.map((option) => (
+            <GlassOption
+              key={option.value}
+              label={option.label}
+              emoji={option.emoji}
+              description={option.description}
+              selected={routeIntent === option.value}
+              onPress={() => setRouteIntent(option.value)}
+            />
+          ))}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
+            What does this destination represent?
+          </Text>
+          {destinationTypeOptions.map((option) => (
+            <GlassOption
+              key={option.value}
+              label={option.label}
+              emoji={option.emoji}
+              description={option.description}
+              selected={destinationType === option.value}
+              onPress={() => setDestinationType(option.value)}
+            />
+          ))}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Starting location</Text>
+          <Text style={[styles.sectionDescription, { color: colors.onSurfaceVariant }]}>
+            Optional, but helpful when you know where you will be departing from.
+          </Text>
+          <GlassInput
+            value={originName}
+            onChangeText={setOriginName}
+            placeholder="City, neighborhood, or landmark"
+            icon={<Ionicons name="navigate-outline" size={20} color={colors.onSurfaceVariant} />}
+          />
+          <Pressable
+            style={[styles.inlineButton, { borderColor: colors.primary }]}
+            onPress={getCurrentLocation}
+            disabled={loadingLocation}
+          >
+            <Ionicons name="locate-outline" size={18} color={colors.primary} />
+            <Text style={[styles.inlineButtonText, { color: colors.primary }]}>
+              {loadingLocation ? "Detecting location..." : "Use my current location"}
+            </Text>
+          </Pressable>
+          <View style={styles.dateRow}>
+            <View style={{ flex: 1 }}>
+              <GlassDatePicker
+                value={originArrival}
+                onChange={setOriginArrival}
+                placeholder="Arrival"
+                label="Arrival"
+                containerStyle={{ marginBottom: 0 }}
+              />
+            </View>
+            <View style={{ width: 12 }} />
+            <View style={{ flex: 1 }}>
+              <GlassDatePicker
+                value={originDeparture}
+                onChange={setOriginDeparture}
+                placeholder="Departure"
+                label="Departure"
+                containerStyle={{ marginBottom: 0 }}
+                minimumDate={originArrival}
+              />
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Destination</Text>
+          <Text style={[styles.sectionDescription, { color: colors.onSurfaceVariant }]}>
+            This should be the place you actually want to go.
+          </Text>
+          <GlassInput
+            value={destinationName}
+            onChangeText={setDestinationName}
+            placeholder="City, region, or place"
+            icon={<Ionicons name="flag-outline" size={20} color={colors.onSurfaceVariant} />}
+          />
+          <View style={styles.dateRow}>
+            <View style={{ flex: 1 }}>
+              <GlassDatePicker
+                value={destinationArrival}
+                onChange={setDestinationArrival}
+                placeholder="Arrival"
+                label="Arrival"
+                containerStyle={{ marginBottom: 0 }}
+              />
+            </View>
+            <View style={{ width: 12 }} />
+            <View style={{ flex: 1 }}>
+              <GlassDatePicker
+                value={destinationDeparture}
+                onChange={setDestinationDeparture}
+                placeholder="Departure"
+                label="Departure"
+                containerStyle={{ marginBottom: 0 }}
+                minimumDate={destinationArrival}
+              />
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Stops along the way</Text>
+          <Text style={[styles.sectionDescription, { color: colors.onSurfaceVariant }]}>
+            Add intermediate stops if you have a route with multiple legs.
+          </Text>
+
+          {extraStops.length > 0 ? (
+            <View style={styles.stopList}>
+              {extraStops.map((stop, index) => (
+                <AdaptiveGlassView key={`${stop.location.name}-${index}`} style={styles.stopCard}>
+                  <View style={styles.stopHeader}>
+                    <View style={styles.locationRow}>
+                      <Ionicons name="location" size={16} color={colors.primary} />
+                      <Text style={[styles.locationName, { color: colors.onSurface }]}>
+                        {stop.location.name}
+                      </Text>
+                    </View>
+                    <Pressable onPress={() => removeStop(index)} hitSlop={10}>
+                      <Ionicons name="close" size={18} color={colors.onSurfaceVariant} />
+                    </Pressable>
+                  </View>
+                  <Text style={[styles.dates, { color: colors.onSurfaceVariant }]}>
+                    {stop.arrivalDate} - {stop.departureDate}
+                  </Text>
+                </AdaptiveGlassView>
+              ))}
+            </View>
+          ) : (
+            <View style={[styles.emptyState, { borderColor: "rgba(255,255,255,0.1)" }]}>
+              <Ionicons name="trail-sign-outline" size={24} color={colors.primary} />
+              <Text style={[styles.emptyText, { color: colors.onSurfaceVariant }]}>
+                No intermediate stops yet
+              </Text>
+            </View>
+          )}
+
+          {!showAddForm ? (
+            <Pressable
+              style={[styles.addStopButton, { backgroundColor: "rgba(255,255,255,0.05)" }]}
+              onPress={() => {
+                setShowAddForm(true);
+                hapticSelection();
+              }}
+            >
+              <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+              <Text style={[styles.addStopText, { color: colors.primary }]}>Add an intermediate stop</Text>
+            </Pressable>
+          ) : (
+            <AdaptiveGlassView style={styles.addForm}>
+              <Text style={[styles.formTitle, { color: colors.onSurface }]}>New Stop</Text>
+
+              <GlassInput
+                value={newLocationName}
+                onChangeText={setNewLocationName}
+                placeholder="City, State or Location Name"
+                icon={<Ionicons name="location-outline" size={20} color={colors.onSurfaceVariant} />}
+              />
+
+              <View style={styles.dateRow}>
+                <View style={{ flex: 1 }}>
+                  <GlassDatePicker
+                    value={newArrival}
+                    onChange={setNewArrival}
+                    placeholder="Arrival"
+                    label="Arrival"
+                    containerStyle={{ marginBottom: 0 }}
+                  />
+                </View>
+                <View style={{ width: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <GlassDatePicker
+                    value={newDeparture}
+                    onChange={setNewDeparture}
+                    placeholder="Departure"
+                    label="Departure"
+                    containerStyle={{ marginBottom: 0 }}
+                    minimumDate={newArrival}
+                  />
+                </View>
               </View>
-              
-              <AdaptiveGlassView style={styles.stopCard}>
-                <View style={styles.stopHeader}>
-                  <View style={styles.locationRow}>
-                    <Ionicons name="location" size={16} color={colors.primary} />
+
+              <View style={styles.formActions}>
+                <Pressable onPress={() => setShowAddForm(false)} style={styles.cancelButton}>
+                  <Text style={{ color: colors.onSurfaceVariant }}>Cancel</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={handleAddStop}
+                  style={[
+                    styles.addButton,
+                    { backgroundColor: colors.primary },
+                    addingStop && { opacity: 0.6 },
+                  ]}
+                  disabled={addingStop}
+                >
+                  <Text style={{ color: "#FFF", fontWeight: "600" }}>
+                    {addingStop ? "Adding..." : "Add"}
+                  </Text>
+                </Pressable>
+              </View>
+            </AdaptiveGlassView>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Route preview</Text>
+          {previewStops.length > 0 ? (
+            <View style={styles.timelineContainer}>
+              {previewStops.map((stop, index) => {
+                const stopNumber =
+                  previewStops.filter(
+                    (candidate, idx) =>
+                      idx <= index && candidate.role !== "origin" && candidate.role !== "destination"
+                  ).length || 1;
+                return (
+                <View key={`${stop.location.name}-${index}`} style={styles.timelineItem}>
+                  <View style={styles.timelineLeft}>
+                    <View style={[styles.dot, { backgroundColor: colors.primary }]} />
+                    {index < previewStops.length - 1 && (
+                      <View style={[styles.line, { backgroundColor: "rgba(255,255,255,0.1)" }]} />
+                    )}
+                  </View>
+                  <AdaptiveGlassView style={styles.stopCard}>
+                    <View style={styles.stopHeader}>
+                      <Text style={[styles.stopLabel, { color: colors.onSurfaceVariant }]}>
+                        {renderStopLabel(stop, stopNumber)}
+                      </Text>
+                    </View>
                     <Text style={[styles.locationName, { color: colors.onSurface }]}>
                       {stop.location.name}
                     </Text>
-                  </View>
-                  <Pressable onPress={() => removeStop(index)} hitSlop={10}>
-                    <Ionicons name="close" size={18} color={colors.onSurfaceVariant} />
-                  </Pressable>
+                    <Text style={[styles.dates, { color: colors.onSurfaceVariant }]}>
+                      {stop.arrivalDate} - {stop.departureDate}
+                    </Text>
+                  </AdaptiveGlassView>
                 </View>
-                <Text style={[styles.dates, { color: colors.onSurfaceVariant }]}>
-                  {stop.arrivalDate} - {stop.departureDate}
-                </Text>
-              </AdaptiveGlassView>
+              )})}
             </View>
-          ))}
-          
-          {stops.length === 0 && !loadingLocation && (
-            <Pressable 
-              style={[styles.emptyState, { borderColor: "rgba(255,255,255,0.1)" }]}
-              onPress={getCurrentLocation}
-            >
-              <Ionicons name="locate" size={24} color={colors.primary} />
+          ) : (
+            <View style={[styles.emptyState, { borderColor: "rgba(255,255,255,0.1)" }]}>
+              <Ionicons name="map-outline" size={24} color={colors.primary} />
               <Text style={[styles.emptyText, { color: colors.onSurfaceVariant }]}>
-                Tap to detect current location
+                Fill out the route details to see your preview
               </Text>
-            </Pressable>
+            </View>
           )}
-
-           {loadingLocation && (
-             <View style={styles.loadingContainer}>
-               <Text style={{ color: colors.onSurfaceVariant }}>Detecting location...</Text>
-             </View>
-           )}
         </View>
-
-        {/* Add Stop Button or Form */}
-        {!showAddForm ? (
-          <Pressable 
-            style={[styles.addStopButton, { backgroundColor: "rgba(255,255,255,0.05)" }]}
-            onPress={() => {
-              setShowAddForm(true);
-              hapticSelection();
-            }}
-          >
-            <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
-            <Text style={[styles.addStopText, { color: colors.primary }]}>Add a Stop</Text>
-          </Pressable>
-        ) : (
-          <AdaptiveGlassView style={styles.addForm}>
-            <Text style={[styles.formTitle, { color: colors.onSurface }]}>New Stop</Text>
-            
-            <GlassInput
-              value={newLocationName}
-              onChangeText={setNewLocationName}
-              placeholder="City, State or Location Name"
-              icon={<Ionicons name="location-outline" size={20} color={colors.onSurfaceVariant} />}
-            />
-            
-            <View style={styles.dateRow}>
-              <View style={{ flex: 1 }}>
-                <GlassDatePicker
-                  value={newArrival}
-                  onChange={setNewArrival}
-                  placeholder="Arrival"
-                  label="Arrival"
-                  containerStyle={{ marginBottom: 0 }}
-                />
-              </View>
-              <View style={{ width: 12 }} />
-              <View style={{ flex: 1 }}>
-                <GlassDatePicker
-                  value={newDeparture}
-                  onChange={setNewDeparture}
-                  placeholder="Departure"
-                  label="Departure"
-                  containerStyle={{ marginBottom: 0 }}
-                  minimumDate={newArrival}
-                />
-              </View>
-            </View>
-
-            <View style={styles.formActions}>
-              <Pressable 
-                onPress={() => setShowAddForm(false)} 
-                style={styles.cancelButton}
-              >
-                <Text style={{ color: colors.onSurfaceVariant }}>Cancel</Text>
-              </Pressable>
-              
-              <Pressable 
-                onPress={handleAddStop}
-                style={[styles.addButton, { backgroundColor: colors.primary }]}
-              >
-                <Text style={{ color: "#FFF", fontWeight: "600" }}>Add</Text>
-              </Pressable>
-            </View>
-          </AdaptiveGlassView>
-        )}
-
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-        <GlassButton
-          title="Continue"
-          onPress={handleContinue}
-          disabled={stops.length === 0}
-        />
+        <GlassButton title="Continue" onPress={handleContinue} loading={savingRoute} />
       </View>
     </View>
   );
@@ -294,8 +744,42 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     lineHeight: 22,
   },
-  timelineContainer: {
+  section: {
     marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  sectionDescription: {
+    fontSize: 13,
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  inlineButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 8,
+    marginBottom: 16,
+  },
+  inlineButtonText: {
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  dateRow: {
+    flexDirection: "row",
+  },
+  stopList: {
+    gap: 12,
+    marginBottom: 12,
+  },
+  timelineContainer: {
+    marginTop: 8,
   },
   timelineItem: {
     flexDirection: "row",
@@ -310,7 +794,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    marginTop: 24, // Align with card center roughly
+    marginTop: 24,
   },
   line: {
     width: 2,
@@ -327,6 +811,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 4,
+  },
+  stopLabel: {
+    fontSize: 12,
+    fontWeight: "600",
   },
   locationRow: {
     flexDirection: "row",
@@ -348,13 +836,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
+    marginBottom: 12,
   },
   emptyText: {
     fontSize: 14,
-  },
-  loadingContainer: {
-    padding: 24,
-    alignItems: "center",
+    textAlign: "center",
   },
   addStopButton: {
     flexDirection: "row",
@@ -377,9 +863,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     marginBottom: 4,
-  },
-  dateRow: {
-    flexDirection: "row",
   },
   formActions: {
     flexDirection: "row",

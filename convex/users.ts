@@ -26,6 +26,9 @@ export const createProfile = mutation({
       arrivalDate: v.string(), 
       departureDate: v.string(), 
       notes: v.optional(v.string()), 
+      role: v.optional(v.string()),
+      intent: v.optional(v.string()),
+      destinationType: v.optional(v.string()),
     }))),
   }, 
   handler: async (ctx, args) => { 
@@ -61,6 +64,9 @@ export const updateRoute = mutation({
       arrivalDate: v.string(), 
       departureDate: v.string(), 
       notes: v.optional(v.string()), 
+      role: v.optional(v.string()),
+      intent: v.optional(v.string()),
+      destinationType: v.optional(v.string()),
     })), 
   }, 
   handler: async (ctx, { userId, route }) => { 

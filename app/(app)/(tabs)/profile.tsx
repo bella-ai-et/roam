@@ -15,7 +15,6 @@ import { hapticButtonPress } from "@/lib/haptics";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { INTERESTS, SCREEN_WIDTH, VAN_BUILD_STATUSES, VAN_TYPES } from "@/lib/constants";
-import { resetOnboardingData, setOnboardingField } from "@/lib/onboardingState";
 
 function PhotoItem({ storageId }: { storageId: string }) {
   const { colors } = useAppTheme();
@@ -77,24 +76,8 @@ export default function ProfileScreen() {
   };
 
   const handleEditProfile = () => {
-    resetOnboardingData();
-    setOnboardingField("editing", true);
-    if (currentUser?._id) {
-      setOnboardingField("profileId", currentUser._id);
-    }
-    setOnboardingField("name", currentUser?.name || clerkUser?.fullName || "");
-    setOnboardingField("dateOfBirth", currentUser?.dateOfBirth || Date.now());
-    setOnboardingField("gender", currentUser?.gender || "");
-    setOnboardingField("photos", currentUser?.photos || []);
-    setOnboardingField("interests", currentUser?.interests || []);
-    setOnboardingField("lookingFor", currentUser?.lookingFor || []);
-    setOnboardingField("vanType", currentUser?.vanType || "");
-    setOnboardingField("vanBuildStatus", currentUser?.vanBuildStatus || "");
-    setOnboardingField("currentRoute", currentUser?.currentRoute || []);
-    if (currentUser?.vanPhotoUrl) {
-      setOnboardingField("vanPhotoUrl", currentUser.vanPhotoUrl);
-    }
-    router.push("/(app)/onboarding/profile");
+    hapticButtonPress();
+    router.push("/(app)/edit-profile");
   };
 
   const formatRouteDate = (value: string) => {

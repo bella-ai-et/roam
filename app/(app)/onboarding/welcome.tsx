@@ -36,7 +36,7 @@ export default function WelcomeScreen() {
 
         <Pressable
           style={styles.button}
-          onPress={() => router.push("/(app)/onboarding/verification")}
+          onPress={() => router.push("/(app)/onboarding/profile")}
         >
           <Text style={styles.buttonText}>Get Started</Text>
         </Pressable>

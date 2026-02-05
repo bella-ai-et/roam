@@ -1,125 +1,25 @@
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "@clerk/clerk-expo";
-import { useMutation } from "convex/react";
 
 import { GlassButton } from "@/components/glass";
 import { useAppTheme } from "@/lib/theme";
-import { getOnboardingData, resetOnboardingData } from "@/lib/onboardingState";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { hapticSuccess, hapticError } from "@/lib/haptics";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 export default function CompleteScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
-  const { userId: clerkId } = useAuth();
-  const createProfile = useMutation(api.users.createProfile);
-  const updateProfile = useMutation(api.users.updateProfile);
-  const updateRoute = useMutation(api.users.updateRoute);
-  const { currentUser } = useCurrentUser();
-  
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Animation values
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  useEffect(() => {
-    submitProfile();
-  }, []);
-
-  useEffect(() => {
-    if (status === "success") {
-      startAnimations();
-    }
-  }, [status]);
-
-  const submitProfile = async () => {
-    let isEditing = false;
-    try {
-      setStatus("loading");
-      setErrorMsg(null);
-      
-      const data = getOnboardingData();
-      isEditing = data.editing === true;
-      const targetUserId = (data.profileId || currentUser?._id) as Id<"users"> | undefined;
-      console.log("Submitting onboarding data:", JSON.stringify(data, null, 2));
-      
-      if (!clerkId) throw new Error("No authentication found");
-      
-      // Check for missing required fields and redirect if necessary
-      if (!data.name || !data.dateOfBirth || !data.gender) {
-        console.log("Missing required fields, redirecting to profile...");
-        // Use replace to prevent going back to complete screen
-        router.replace("/(app)/onboarding/profile");
-        return;
-      }
-
-      // Clean undefined fields if necessary, or let convex handle optional ones
-      // We assume data is valid based on previous screen checks
-      
-      if (isEditing) {
-        if (!targetUserId) {
-          throw new Error("No profile found to update");
-        }
-        await updateProfile({
-          userId: targetUserId,
-          name: data.name,
-          photos: data.photos || [],
-          interests: data.interests || [],
-          lookingFor: data.lookingFor || [],
-          vanType: data.vanType,
-          vanBuildStatus: data.vanBuildStatus,
-          vanPhotoUrl: data.vanPhotoUrl,
-        });
-
-        if (data.currentRoute && data.currentRoute.length > 0) {
-          await updateRoute({
-            userId: targetUserId,
-            route: data.currentRoute,
-          });
-        }
-      } else {
-        await createProfile({
-          clerkId,
-          name: data.name,
-          dateOfBirth: data.dateOfBirth,
-          gender: data.gender,
-          photos: data.photos || [],
-          interests: data.interests || [],
-          lookingFor: data.lookingFor || [],
-          vanType: data.vanType,
-          vanBuildStatus: data.vanBuildStatus,
-          vanVerified: false,
-          vanPhotoUrl: data.vanPhotoUrl,
-          currentRoute: data.currentRoute,
-        });
-      }
-
-      setStatus("success");
-      hapticSuccess();
-    } catch (err: any) {
-      console.error(isEditing ? "Profile update failed:" : "Profile creation failed:", err);
-      setStatus("error");
-      setErrorMsg(err.message || "Something went wrong.");
-      hapticError();
-    }
-  };
-
-  const startAnimations = () => {
-    // 1. Scale up from 0 to 1 with spring
+  const startAnimations = useCallback(() => {
     Animated.spring(scaleAnim, {
       toValue: 1,
       friction: 6,
       tension: 40,
       useNativeDriver: true,
     }).start(() => {
-      // 2. Continuous pulse animation
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -135,67 +35,43 @@ export default function CompleteScreen() {
         ])
       ).start();
     });
-  };
+  }, [pulseAnim, scaleAnim]);
+
+  useEffect(() => {
+    startAnimations();
+  }, [startAnimations]);
 
   const handleStartExploring = () => {
-    resetOnboardingData();
     router.push("/(app)/(tabs)");
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      
-      {status === "loading" && (
-        <View style={styles.centerContent}>
-          <Text style={[styles.loadingText, { color: colors.onSurfaceVariant }]}>
-            Creating your profile...
-          </Text>
+      <View style={styles.centerContent}>
+        <Animated.View
+          style={[
+            styles.checkCircle,
+            {
+              backgroundColor: "#34C759",
+              transform: [{ scale: scaleAnim }, { scale: pulseAnim }],
+            },
+          ]}
+        >
+          <Ionicons name="checkmark" size={40} color="#FFFFFF" />
+        </Animated.View>
+
+        <Text style={[styles.title, { color: colors.onSurface, marginTop: 32 }]}>
+          You are all set!
+        </Text>
+        
+        <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
+          Your Roam profile is live
+        </Text>
+
+        <View style={styles.buttonContainer}>
+          <GlassButton title="Start Exploring" onPress={handleStartExploring} />
         </View>
-      )}
-
-      {status === "error" && (
-        <View style={styles.centerContent}>
-          <Ionicons name="alert-circle" size={64} color={colors.error} style={{ marginBottom: 16 }} />
-          <Text style={[styles.title, { color: colors.onSurface }]}>Oops!</Text>
-          <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
-            {errorMsg}
-          </Text>
-          <View style={styles.buttonContainer}>
-             <GlassButton title="Try Again" onPress={submitProfile} />
-          </View>
-        </View>
-      )}
-
-      {status === "success" && (
-        <View style={styles.centerContent}>
-          <Animated.View
-            style={[
-              styles.checkCircle,
-              {
-                backgroundColor: "#34C759", // Green
-                transform: [{ scale: scaleAnim }, { scale: pulseAnim }],
-              },
-            ]}
-          >
-            <Ionicons name="checkmark" size={40} color="#FFFFFF" />
-          </Animated.View>
-
-          <Text style={[styles.title, { color: colors.onSurface, marginTop: 32 }]}>
-            You're all set!
-          </Text>
-          
-          <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
-            Your Roam profile is live
-          </Text>
-
-          <View style={styles.buttonContainer}>
-            <GlassButton
-              title="Start Exploring"
-              onPress={handleStartExploring}
-            />
-          </View>
-        </View>
-      )}
+      </View>
     </View>
   );
 }
@@ -211,10 +87,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
-  },
-  loadingText: {
-    fontSize: 16,
-    fontWeight: "500",
   },
   checkCircle: {
     width: 80,

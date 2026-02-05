@@ -1,23 +1,32 @@
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useMutation } from "convex/react";
 
 import { GlassHeader, GlassButton, GlassChip } from "@/components/glass";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useAppTheme } from "@/lib/theme";
-import { setOnboardingField, getOnboardingData } from "@/lib/onboardingState";
-import { hapticSelection, hapticWarning } from "@/lib/haptics";
+import { hapticWarning } from "@/lib/haptics";
 import { INTERESTS, MIN_INTERESTS, MAX_INTERESTS } from "@/lib/constants";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { api } from "@/convex/_generated/api";
 
 export default function InterestsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
+  const { currentUser } = useCurrentUser();
+  const updateProfile = useMutation(api.users.updateProfile);
+  const [saving, setSaving] = useState(false);
 
-  const existingData = getOnboardingData();
-  const [selectedInterests, setSelectedInterests] = useState<string[]>(existingData.interests || []);
+  const [selectedInterests, setSelectedInterests] = useState<string[]>(currentUser?.interests || []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    setSelectedInterests(currentUser.interests ?? []);
+  }, [currentUser]);
 
   const toggleInterest = (interestName: string) => {
     setSelectedInterests(prev => {
@@ -37,13 +46,29 @@ export default function InterestsScreen() {
     // So we don't need to call it here if we use GlassChip.
   };
 
-  const handleContinue = () => {
-    setOnboardingField("interests", selectedInterests);
-    router.push("/(app)/onboarding/van-details"); 
+  const handleContinue = async () => {
+    if (!currentUser?._id) return;
+    setSaving(true);
+    try {
+      await updateProfile({ userId: currentUser._id, interests: selectedInterests });
+      router.push("/(app)/onboarding/van-details");
+    } catch {
+      Alert.alert("Error", "Failed to save your interests.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const isValid = selectedInterests.length >= MIN_INTERESTS && selectedInterests.length <= MAX_INTERESTS;
   const isTooFew = selectedInterests.length < MIN_INTERESTS;
+
+  if (currentUser === undefined) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -100,7 +125,8 @@ export default function InterestsScreen() {
         <GlassButton
           title="Continue"
           onPress={handleContinue}
-          disabled={!isValid}
+          disabled={!isValid || saving}
+          loading={saving}
         />
       </View>
     </View>

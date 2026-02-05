@@ -1,17 +1,19 @@
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { differenceInYears } from "date-fns";
+import { useMutation } from "convex/react";
 
 import { GlassHeader, GlassButton, GlassInput, GlassOption, GlassDatePicker } from "@/components/glass";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useAppTheme } from "@/lib/theme";
 import { usePhotoPicker } from "@/hooks/usePhotoPicker";
-import { setOnboardingField, getOnboardingData } from "@/lib/onboardingState";
 import { hapticSelection } from "@/lib/haptics";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { api } from "@/convex/_generated/api";
 
 const MAX_PHOTOS = 5;
 
@@ -20,28 +22,27 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const { pickImage, uploadPhoto } = usePhotoPicker({ aspect: [1, 1], quality: 0.8 });
+  const { currentUser, clerkUser } = useCurrentUser();
+  const createProfile = useMutation(api.users.createProfile);
+  const updateProfile = useMutation(api.users.updateProfile);
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  // Initial state from store or defaults
-  const existingData = getOnboardingData();
-  const [name, setName] = useState(existingData.name || "");
+  const [name, setName] = useState(currentUser?.name || "");
   const [dob, setDob] = useState<Date | undefined>(
-    existingData.dateOfBirth ? new Date(existingData.dateOfBirth) : undefined
+    currentUser?.dateOfBirth ? new Date(currentUser.dateOfBirth) : undefined
   );
-  const [gender, setGender] = useState(existingData.gender || "");
-  const [photos, setPhotos] = useState<string[]>(existingData.photos || []); // array of storageIds
-  
-  // We need to store local URIs for preview since storageIds are not directly viewable without a signed URL
-  // For simplicity in this demo, we might rely on the fact that pickAndUpload returns localUri.
-  // In a real app, we'd want to manage local preview URIs separately or fetch signed URLs.
-  // For this implementation, I will store objects { id: string, uri: string } in local state, 
-  // but only sync IDs to the store.
-  const [localPhotos, setLocalPhotos] = useState<Array<{ id: string; uri: string }>>([]);
+  const [gender, setGender] = useState(currentUser?.gender || "");
+  const [photos, setPhotos] = useState<string[]>(currentUser?.photos || []);
+  const [localPhotos, setLocalPhotos] = useState<{ id: string; uri: string }[]>([]);
 
-  // Load existing photos if we had them (this part is tricky without persistent local URIs across refreshes,
-  // but for a single session flow, we assume the user just added them or we restart).
-  // If we came back from next screen, we might lose image previews if we don't persist them.
-  // For now, we'll start fresh or rely on what's in memory.
+  useEffect(() => {
+    if (!currentUser) return;
+    setName(currentUser.name ?? "");
+    setDob(currentUser.dateOfBirth ? new Date(currentUser.dateOfBirth) : undefined);
+    setGender(currentUser.gender ?? "");
+    setPhotos(currentUser.photos ?? []);
+  }, [currentUser]);
 
   const handleAddPhoto = async () => {
     if (localPhotos.length >= MAX_PHOTOS) return;
@@ -73,16 +74,49 @@ export default function ProfileScreen() {
     gender.length > 0 && 
     photos.length > 0;
 
-  const handleContinue = () => {
-    if (!canContinue || !dob) return;
-    
-    setOnboardingField("name", name);
-    setOnboardingField("dateOfBirth", dob.getTime());
-    setOnboardingField("gender", gender);
-    setOnboardingField("photos", photos);
-
-    router.push("/(app)/onboarding/looking-for");
+  const handleContinue = async () => {
+    if (!canContinue || !dob || !clerkUser?.id) return;
+    setSaving(true);
+    try {
+      if (currentUser?._id) {
+        await updateProfile({
+          userId: currentUser._id,
+          name: name.trim(),
+          dateOfBirth: dob.getTime(),
+          gender,
+          photos,
+        });
+      } else {
+        await createProfile({
+          clerkId: clerkUser.id,
+          name: name.trim(),
+          dateOfBirth: dob.getTime(),
+          gender,
+          photos,
+          interests: [],
+          lookingFor: [],
+          vanType: undefined,
+          vanBuildStatus: undefined,
+          vanVerified: false,
+          vanPhotoUrl: undefined,
+          currentRoute: undefined,
+        });
+      }
+      router.push("/(app)/onboarding/verification");
+    } catch {
+      Alert.alert("Error", "Failed to save profile.");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (currentUser === undefined) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -101,7 +135,7 @@ export default function ProfileScreen() {
           { paddingTop: insets.top + 60, paddingBottom: 100 }
         ]}
       >
-        <ProgressBar current={2} total={8} />
+        <ProgressBar current={1} total={8} />
 
         <View style={styles.section}>
           <GlassInput
@@ -180,7 +214,8 @@ export default function ProfileScreen() {
         <GlassButton
           title="Continue"
           onPress={handleContinue}
-          disabled={!canContinue}
+          disabled={!canContinue || saving}
+          loading={saving}
         />
       </View>
     </View>
