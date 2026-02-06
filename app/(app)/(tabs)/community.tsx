@@ -35,12 +35,29 @@ function getInitials(name?: string) {
   return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
 }
 
+function isRemoteUrl(value?: string) {
+  if (!value) return false;
+  const trimmed = value.trim();
+  return trimmed.startsWith("http://") || trimmed.startsWith("https://");
+}
+
+function normalizePhotoValue(value?: string) {
+  if (!value) return undefined;
+  return value.replace(/`/g, "").trim();
+}
+
 function Avatar({ user }: { user: Doc<"users"> | null }) {
   const { colors } = useAppTheme();
+  const normalized = normalizePhotoValue(user?.photos?.[0]);
+  const remote = isRemoteUrl(normalized);
   const photoUrl = useQuery(
     api.files.getUrl,
-    user?.photos?.[0] ? { storageId: user.photos[0] as Id<"_storage"> } : "skip"
+    normalized && !remote ? { storageId: normalized as Id<"_storage"> } : "skip"
   );
+
+  if (remote && normalized) {
+    return <Image source={{ uri: normalized }} style={styles.avatar} contentFit="cover" />;
+  }
 
   if (photoUrl) {
     return <Image source={{ uri: photoUrl }} style={styles.avatar} contentFit="cover" />;
@@ -55,10 +72,16 @@ function Avatar({ user }: { user: Doc<"users"> | null }) {
 }
 
 function PhotoThumb({ storageId }: { storageId: string }) {
+  const normalized = normalizePhotoValue(storageId);
+  const remote = isRemoteUrl(normalized);
   const photoUrl = useQuery(
     api.files.getUrl,
-    storageId ? { storageId: storageId as Id<"_storage"> } : "skip"
+    normalized && !remote ? { storageId: normalized as Id<"_storage"> } : "skip"
   );
+
+  if (remote && normalized) {
+    return <Image source={{ uri: normalized }} style={styles.photoThumb} contentFit="cover" />;
+  }
 
   if (!photoUrl) {
     return <View style={styles.photoPlaceholder} />;

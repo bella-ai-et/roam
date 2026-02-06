@@ -16,16 +16,31 @@ import { INTERESTS, MAX_INTERESTS, MIN_INTERESTS, VAN_BUILD_STATUSES, VAN_TYPES 
 
 const MAX_PHOTOS = 5;
 
+function isRemoteUrl(value?: string) {
+  if (!value) return false;
+  const trimmed = value.trim();
+  return trimmed.startsWith("http://") || trimmed.startsWith("https://");
+}
+
+function normalizePhotoValue(value?: string) {
+  if (!value) return undefined;
+  return value.replace(/`/g, "").trim();
+}
+
 function PhotoTile({ storageId, onRemove }: { storageId: string; onRemove: () => void }) {
   const { colors } = useAppTheme();
+  const normalized = normalizePhotoValue(storageId);
+  const remote = isRemoteUrl(normalized);
   const photoUrl = useQuery(
     api.files.getUrl,
-    storageId ? { storageId: storageId as Id<"_storage"> } : "skip"
+    normalized && !remote ? { storageId: normalized as Id<"_storage"> } : "skip"
   );
 
   return (
     <View style={styles.photoSlot}>
-      {photoUrl ? (
+      {remote && normalized ? (
+        <Image source={{ uri: normalized }} style={styles.photo} contentFit="cover" />
+      ) : photoUrl ? (
         <Image source={{ uri: photoUrl }} style={styles.photo} contentFit="cover" />
       ) : (
         <View style={[styles.photoPlaceholder, { backgroundColor: colors.surfaceVariant }]}>

@@ -16,12 +16,29 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { INTERESTS, SCREEN_WIDTH, VAN_BUILD_STATUSES, VAN_TYPES } from "@/lib/constants";
 
+function isRemoteUrl(value?: string) {
+  if (!value) return false;
+  const trimmed = value.trim();
+  return trimmed.startsWith("http://") || trimmed.startsWith("https://");
+}
+
+function normalizePhotoValue(value?: string) {
+  if (!value) return undefined;
+  return value.replace(/`/g, "").trim();
+}
+
 function PhotoItem({ storageId }: { storageId: string }) {
   const { colors } = useAppTheme();
+  const normalized = normalizePhotoValue(storageId);
+  const remote = isRemoteUrl(normalized);
   const photoUrl = useQuery(
     api.files.getUrl,
-    storageId ? { storageId: storageId as Id<"_storage"> } : "skip"
+    normalized && !remote ? { storageId: normalized as Id<"_storage"> } : "skip"
   );
+
+  if (remote && normalized) {
+    return <Image source={{ uri: normalized }} style={styles.photo} contentFit="cover" />;
+  }
 
   if (!photoUrl) {
     return (

@@ -17,6 +17,29 @@ export const recordSwipe = mutation({
     await ctx.db.insert("swipes", { swiperId, swipedId, action, createdAt: Date.now() });
 
     if (action === "like") {
+      const swipedUser = await ctx.db.get(swipedId);
+      const isDemoUser = Boolean(swipedUser?.clerkId?.startsWith("seed-abu-dhabi-"));
+      if (isDemoUser) {
+        const existingMatch = await ctx.db
+          .query("matches")
+          .filter((q) =>
+            q.or(
+              q.and(q.eq(q.field("user1Id"), swiperId), q.eq(q.field("user2Id"), swipedId)),
+              q.and(q.eq(q.field("user1Id"), swipedId), q.eq(q.field("user2Id"), swiperId))
+            )
+          )
+          .first();
+        if (!existingMatch) {
+          const matchId = await ctx.db.insert("matches", {
+            user1Id: swiperId,
+            user2Id: swipedId,
+            matchedAt: Date.now(),
+          });
+          return { matched: true, matchId };
+        }
+        return { matched: true, matchId: existingMatch._id };
+      }
+
       const theirLike = await ctx.db
         .query("swipes")
         .withIndex("by_swiper_and_swiped", (q) => q.eq("swiperId", swipedId).eq("swipedId", swiperId))
@@ -33,6 +56,18 @@ export const recordSwipe = mutation({
     }
 
     return { matched: false, matchId: null };
+  },
+});
+
+export const resetSwipes = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const swipes = await ctx.db
+      .query("swipes")
+      .withIndex("by_swiper", (q) => q.eq("swiperId", userId))
+      .collect();
+    await Promise.all(swipes.map((swipe) => ctx.db.delete(swipe._id)));
+    return { deleted: swipes.length };
   },
 });
 

@@ -2,7 +2,7 @@ import { useQuery } from "convex/react";
 import { Stack } from "expo-router";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { api } from "@/convex/_generated/api";
-import { useAppTheme } from "@/lib/theme";
+import { useAppTheme } from "@/lib/theme";     
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 export default function AppLayout() {

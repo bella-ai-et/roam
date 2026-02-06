@@ -8,6 +8,7 @@ import {
   ScrollView,
   FlatList,
   Animated as RNAnimated,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -65,6 +66,17 @@ function formatOverlapRange(start: string, end: string) {
   return `${formatOverlapDate(start)} – ${formatOverlapDate(end)}`;
 }
 
+function isRemoteUrl(value?: string) {
+  if (!value) return false;
+  const trimmed = value.trim();
+  return trimmed.startsWith("http://") || trimmed.startsWith("https://");
+}
+
+function normalizePhotoValue(value?: string) {
+  if (!value) return undefined;
+  return value.replace(/`/g, "").trim();
+}
+
 function StorageImage({
   storageId,
   style,
@@ -75,10 +87,16 @@ function StorageImage({
   iconSize: number;
 }) {
   const { colors } = useAppTheme();
+  const normalized = normalizePhotoValue(storageId);
+  const isRemote = isRemoteUrl(normalized);
   const photoUrl = useQuery(
     api.files.getUrl,
-    storageId ? { storageId: storageId as Id<"_storage"> } : "skip"
+    normalized && !isRemote ? { storageId: normalized as Id<"_storage"> } : "skip"
   );
+
+  if (isRemote && normalized) {
+    return <Image source={{ uri: normalized }} style={style} contentFit="cover" />;
+  }
 
   if (!photoUrl) {
     return (
@@ -93,10 +111,22 @@ function StorageImage({
 
 function AvatarImage({ storageId, size }: { storageId?: string; size: number }) {
   const { colors } = useAppTheme();
+  const normalized = normalizePhotoValue(storageId);
+  const isRemote = isRemoteUrl(normalized);
   const photoUrl = useQuery(
     api.files.getUrl,
-    storageId ? { storageId: storageId as Id<"_storage"> } : "skip"
+    normalized && !isRemote ? { storageId: normalized as Id<"_storage"> } : "skip"
   );
+
+  if (isRemote && normalized) {
+    return (
+      <Image
+        source={{ uri: normalized }}
+        style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}
+        contentFit="cover"
+      />
+    );
+  }
 
   if (!photoUrl) {
     return (
@@ -386,11 +416,16 @@ export default function DiscoverScreen() {
     currentUser?._id ? { userId: currentUser._id } : "skip"
   ) as RouteMatch[] | undefined;
   const recordSwipe = useMutation(api.swipes.recordSwipe);
+  const resetSwipes = useMutation(api.swipes.resetSwipes);
+  const updateRoute = useMutation(api.users.updateRoute);
+  const seedDemoProfiles = useMutation((api as any).seed.seed);
   const [activeIndex, setActiveIndex] = useState(0);
   const [profileModal, setProfileModal] = useState<RouteMatch | null>(null);
   const [matchState, setMatchState] = useState<{ user: Doc<"users">; matchId: Id<"matches"> } | null>(null);
+  const [applyingDemoRoute, setApplyingDemoRoute] = useState(false);
   const translateX = useSharedValue(0);
   const activeMatchRef = useRef<RouteMatch | null>(null);
+  const swipeInProgressRef = useRef(false);
 
   const availableMatches = useMemo(() => matches ?? [], [matches]);
   const activeMatch = availableMatches[activeIndex];
@@ -403,28 +438,95 @@ export default function DiscoverScreen() {
     activeMatchRef.current = activeMatch ?? null;
   }, [activeMatch]);
 
+  const resetSwipeLock = () => {
+    swipeInProgressRef.current = false;
+  };
+
   const handleSwipe = async (action: "like" | "reject") => {
     const match = activeMatchRef.current;
-    if (!match || !currentUser?._id) return;
+    if (!match || !currentUser?._id) {
+      resetSwipeLock();
+      return;
+    }
     setActiveIndex((prev) => prev + 1);
     translateX.value = 0;
-    const result = await recordSwipe({
-      swiperId: currentUser._id,
-      swipedId: match.user._id,
-      action,
-    });
-    if (result?.matched) {
-      setMatchState({ user: match.user, matchId: result.matchId as Id<"matches"> });
+    try {
+      const result = await recordSwipe({
+        swiperId: currentUser._id,
+        swipedId: match.user._id,
+        action,
+      });
+      if (result?.matched) {
+        setMatchState({ user: match.user, matchId: result.matchId as Id<"matches"> });
+      }
+    } finally {
+      resetSwipeLock();
     }
   };
 
   const triggerSwipe = (action: "like" | "reject") => {
+    if (swipeInProgressRef.current) return;
+    swipeInProgressRef.current = true;
     const direction = action === "like" ? 1 : -1;
     translateX.value = withTiming(SCREEN_WIDTH * 1.2 * direction, { duration: 240 }, (finished) => {
       if (finished) {
         runOnJS(handleSwipe)(action);
+      } else {
+        runOnJS(resetSwipeLock)();
       }
     });
+  };
+
+  const applyDemoRoute = async () => {
+    if (!currentUser?._id) return;
+    setApplyingDemoRoute(true);
+    try {
+      const seedResult = await seedDemoProfiles({});
+      await resetSwipes({ userId: currentUser._id });
+      const now = new Date();
+      const in7 = new Date(now);
+      in7.setDate(now.getDate() + 7);
+      const in14 = new Date(now);
+      in14.setDate(now.getDate() + 14);
+      const start = format(now, "MM/dd/yyyy");
+      const mid = format(in7, "MM/dd/yyyy");
+      const end = format(in14, "MM/dd/yyyy");
+
+      await updateRoute({
+        userId: currentUser._id,
+        route: [
+          {
+            location: { latitude: 24.4539, longitude: 54.3773, name: "Abu Dhabi" },
+            arrivalDate: start,
+            departureDate: mid,
+            role: "origin",
+            intent: "planned",
+            destinationType: "adventure",
+          },
+          {
+            location: { latitude: 25.0804, longitude: 55.1403, name: "Dubai Marina" },
+            arrivalDate: mid,
+            departureDate: end,
+            role: "destination",
+            intent: "planned",
+            destinationType: "adventure",
+          },
+        ],
+      });
+      const seededCount =
+        seedResult && typeof seedResult === "object" && "inserted" in seedResult
+          ? Number(seedResult.inserted)
+          : undefined;
+      const seedMessage =
+        typeof seededCount === "number"
+          ? `Seeded ${seededCount} profiles.`
+          : "Seeded demo profiles.";
+      Alert.alert("Demo route applied", `${seedMessage} Your route is set to Abu Dhabi → Dubai Marina.`);
+    } catch (error) {
+      Alert.alert("Could not apply demo route", "Please try again.");
+    } finally {
+      setApplyingDemoRoute(false);
+    }
   };
 
   const gestureHandler = useEvent(
@@ -434,16 +536,22 @@ export default function DiscoverScreen() {
         translateX.value = event.translationX;
       }
       if (event.eventName === "onGestureHandlerStateChange" && event.state === State.END) {
-        if (translateX.value > SWIPE_THRESHOLD) {
+        if (translateX.value > SWIPE_THRESHOLD && !swipeInProgressRef.current) {
+          swipeInProgressRef.current = true;
           translateX.value = withTiming(SCREEN_WIDTH * 1.2, { duration: 240 }, (finished) => {
             if (finished) {
               runOnJS(handleSwipe)("like");
+            } else {
+              runOnJS(resetSwipeLock)();
             }
           });
-        } else if (translateX.value < -SWIPE_THRESHOLD) {
+        } else if (translateX.value < -SWIPE_THRESHOLD && !swipeInProgressRef.current) {
+          swipeInProgressRef.current = true;
           translateX.value = withTiming(-SCREEN_WIDTH * 1.2, { duration: 240 }, (finished) => {
             if (finished) {
               runOnJS(handleSwipe)("reject");
+            } else {
+              runOnJS(resetSwipeLock)();
             }
           });
         } else {
@@ -496,6 +604,14 @@ export default function DiscoverScreen() {
           </Text>
           <View style={styles.emptyButton}>
             <GlassButton title="Update Your Route" onPress={() => router.push("/(app)/(tabs)/profile")} />
+          </View>
+          <View style={styles.emptyButton}>
+            <GlassButton
+              title="Use Demo Route"
+              variant="secondary"
+              loading={applyingDemoRoute}
+              onPress={applyDemoRoute}
+            />
           </View>
         </View>
       );

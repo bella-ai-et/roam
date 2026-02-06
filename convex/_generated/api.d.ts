@@ -12,6 +12,8 @@ import type * as files from "../files.js";
 import type * as messages from "../messages.js";
 import type * as posts from "../posts.js";
 import type * as routeMatching from "../routeMatching.js";
+import type * as sampleData_abuDhabiProfiles from "../sampleData/abuDhabiProfiles.js";
+import type * as seed from "../seed.js";
 import type * as swipes from "../swipes.js";
 import type * as users from "../users.js";
 
@@ -26,6 +28,8 @@ declare const fullApi: ApiFromModules<{
   messages: typeof messages;
   posts: typeof posts;
   routeMatching: typeof routeMatching;
+  "sampleData/abuDhabiProfiles": typeof sampleData_abuDhabiProfiles;
+  seed: typeof seed;
   swipes: typeof swipes;
   users: typeof users;
 }>;
