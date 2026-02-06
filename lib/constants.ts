@@ -8,6 +8,14 @@ export const CARD_SPACING = 12;
 export const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3;
 export const ROTATION_ANGLE = 15;
 
+/** Discovery UI – card radius, photo height, action button sizes */
+export const DISCOVERY_CARD_RADIUS = 40;
+export const DISCOVERY_PHOTO_HEIGHT = 320;
+export const ACTION_BUTTON_REJECT_SIZE = 72;
+export const ACTION_BUTTON_LIKE_SIZE = 80;
+export const JOURNEY_STOP_CARD_WIDTH = 144;
+export const MINI_MAP_SIZE = 112;
+
 export const INTERESTS = [
   { name: "Hiking", emoji: "🥾" },
   { name: "Rock Climbing", emoji: "🧗" },
@@ -29,7 +37,22 @@ export const INTERESTS = [
   { name: "Backpacking", emoji: "🎒" },
   { name: "Skateboarding", emoji: "🛹" },
   { name: "Swimming", emoji: "🏊" },
+  { name: "Specialty Coffee", emoji: "☕" },
+  { name: "Solar Tech", emoji: "🔌" },
 ] as const;
+
+/** Travel styles for discovery and onboarding (e.g. Vanlife, Off-roading) */
+export const TRAVEL_STYLES = [
+  { value: "vanlife", label: "Vanlife", emoji: "🚐" },
+  { value: "offroading", label: "Off-roading", emoji: "🏔️" },
+  { value: "overlanding", label: "Overlanding", emoji: "🗺️" },
+  { value: "roadtrips", label: "Road trips", emoji: "🛣️" },
+  { value: "minimalist", label: "Minimalist", emoji: "🧘" },
+  { value: "digital_nomad", label: "Digital nomad", emoji: "💻" },
+  { value: "boondocking", label: "Boondocking", emoji: "🌲" },
+  { value: "camping", label: "Camping", emoji: "⛺" },
+] as const;
+export type TravelStyle = (typeof TRAVEL_STYLES)[number]["value"];
 
 export const INTEREST_NAMES = INTERESTS.map((i) => i.name);
 export type InterestName = (typeof INTEREST_NAMES)[number];

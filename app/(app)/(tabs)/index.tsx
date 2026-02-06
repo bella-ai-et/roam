@@ -29,9 +29,10 @@ import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { api } from "@/convex/_generated/api";
 import { Doc, Id } from "@/convex/_generated/dataModel";
+import { DiscoveryCard } from "@/components/discovery";
 import { GlassButton, GlassChip, GlassHeader } from "@/components/glass";
 import { AdaptiveGlassView } from "@/lib/glass";
-import { useAppTheme } from "@/lib/theme";
+import { AppColors, useAppTheme } from "@/lib/theme";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
   CARD_WIDTH,
@@ -55,7 +56,7 @@ type RouteMatch = {
   sharedInterests: string[];
 };
 
-const CONFETTI_COLORS = ["#E8724A", "#4ECDC4", "#F4D03F", "#FF6B6B", "#6C5CE7"];
+const CONFETTI_COLORS = [AppColors.primary, AppColors.secondary, AppColors.accent, "#FF6B6B", "#6C5CE7"];
 
 function formatOverlapDate(value: string) {
   const parsed = parseISO(value);
@@ -197,97 +198,6 @@ function PhotoCarousel({ photos }: { photos: string[] }) {
         ))}
       </View>
     </View>
-  );
-}
-
-function RouteCard({
-  match,
-  onPress,
-}: {
-  match: RouteMatch;
-  onPress: () => void;
-}) {
-  const { colors } = useAppTheme();
-  const { user, overlaps, sharedInterests } = match;
-  const overlap = overlaps[0];
-  const age = user.dateOfBirth ? differenceInYears(new Date(), new Date(user.dateOfBirth)) : undefined;
-  const vanType = VAN_TYPES.find((type) => type.value === user.vanType);
-  const displayName = `${user.name}${typeof age === "number" ? `, ${age}` : ""}`;
-
-  const interestChips = useMemo(() => {
-    const base = [...sharedInterests];
-    const filler = [vanType?.label ?? "Vanlife", "Road Trips", "Campfires"];
-    const result: string[] = [];
-    for (const interest of base) {
-      if (result.length >= 3) break;
-      result.push(interest);
-    }
-    for (const interest of filler) {
-      if (result.length >= 3) break;
-      if (!result.includes(interest)) result.push(interest);
-    }
-    return result.slice(0, 3);
-  }, [sharedInterests, vanType?.label]);
-
-  return (
-    <Pressable onPress={onPress} style={[styles.card, { backgroundColor: colors.surface }]}>
-      <View style={styles.cardPhotoWrapper}>
-        <StorageImage storageId={user.photos?.[0]} style={styles.cardPhoto} iconSize={36} />
-        <LinearGradient
-          colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.75)"]}
-          style={styles.photoGradient}
-        />
-        <View style={styles.photoTextRow}>
-          <Text style={styles.photoName}>{displayName}</Text>
-          <View style={styles.vanBadge}>
-            <Text style={styles.vanBadgeText}>
-              {vanType?.emoji ?? "🚐"} {vanType?.label ?? "Van"}{user.vanVerified ? " · Verified" : ""}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      <AdaptiveGlassView
-        style={styles.overlapBadge}
-        glassEffectStyle="regular"
-        tintColor={colors.primary}
-        fallbackColor="rgba(232,114,74,0.18)"
-      >
-        <View style={styles.overlapRow}>
-          <Ionicons name="location" size={16} color={colors.onBackground} />
-          <Text style={[styles.overlapTitle, { color: colors.onBackground }]}>
-            Paths cross near {overlap?.locationName ?? "Unknown"}
-          </Text>
-        </View>
-        {overlap && (
-          <View style={styles.overlapMeta}>
-            <Text style={[styles.overlapText, { color: colors.onSurfaceVariant }]}>
-              {formatOverlapRange(overlap.dateRange.start, overlap.dateRange.end)}
-            </Text>
-            <Text style={[styles.overlapText, { color: colors.onSurfaceVariant }]}>
-              {overlap.distance} km apart
-            </Text>
-          </View>
-        )}
-      </AdaptiveGlassView>
-
-      <View style={styles.quickFactsRow}>
-        {interestChips.map((interest) => {
-          const match = INTERESTS.find((item) => item.name === interest);
-          return (
-            <GlassChip
-              key={interest}
-              label={interest}
-              emoji={match?.emoji}
-              selected
-              onPress={() => {}}
-              disabled
-              style={styles.factChip}
-            />
-          );
-        })}
-      </View>
-    </Pressable>
   );
 }
 
@@ -681,7 +591,7 @@ export default function DiscoverScreen() {
                       cardStyle,
                     ]}
                   >
-                    <RouteCard match={match} onPress={() => setProfileModal(match)} />
+                    <DiscoveryCard match={match} onPress={() => setProfileModal(match)} />
                     <Animated.View style={[styles.overlayBadge, styles.likeBadge, likeOverlayStyle]}>
                       <Text style={[styles.overlayText, { color: colors.like }]}>LIKE</Text>
                     </Animated.View>
@@ -703,7 +613,7 @@ export default function DiscoverScreen() {
                   },
                 ]}
               >
-                <RouteCard match={match} onPress={() => setProfileModal(match)} />
+                <DiscoveryCard match={match} onPress={() => setProfileModal(match)} />
               </View>
             );
           })}
@@ -870,81 +780,6 @@ const styles = StyleSheet.create({
   cardContainer: {
     position: "absolute",
     width: CARD_WIDTH,
-  },
-  card: {
-    borderRadius: 24,
-    overflow: "hidden",
-    backgroundColor: "#FFFFFF",
-  },
-  cardPhotoWrapper: {
-    height: 340,
-    width: "100%",
-  },
-  cardPhoto: {
-    width: "100%",
-    height: "100%",
-  },
-  photoGradient: {
-    position: "absolute",
-    bottom: 0,
-    height: 120,
-    width: "100%",
-  },
-  photoTextRow: {
-    position: "absolute",
-    bottom: 16,
-    left: 16,
-    right: 16,
-    gap: 8,
-  },
-  photoName: {
-    color: "#FFFFFF",
-    fontSize: 26,
-    fontWeight: "700",
-  },
-  vanBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(0,0,0,0.5)",
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  vanBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  overlapBadge: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 16,
-    padding: 14,
-  },
-  overlapRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  overlapTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  overlapMeta: {
-    marginTop: 8,
-    gap: 2,
-  },
-  overlapText: {
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  quickFactsRow: {
-    flexDirection: "row",
-    gap: 10,
-    padding: 16,
-  },
-  factChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
   },
   overlayBadge: {
     position: "absolute",

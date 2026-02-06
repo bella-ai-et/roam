@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { GlassButton } from "@/components/glass";
+import { AppColors } from "@/lib/theme";
 
 export default function SignInScreen() {
   const { signIn, setActive, isLoaded } = useSignIn();
@@ -46,7 +47,7 @@ export default function SignInScreen() {
 
   return (
     <LinearGradient
-      colors={["#0F0F0F", "#1A1510", "#0F0F0F"]}
+      colors={[AppColors.background.dark, "#1A1510", AppColors.background.dark]}
       style={styles.container}
     >
       {/* Warm glow */}
@@ -59,7 +60,7 @@ export default function SignInScreen() {
         {/* Logo Section */}
         <View style={styles.logoSection}>
           <LinearGradient
-            colors={["#E8724A", "#D45A2E"]}
+            colors={[AppColors.primary, AppColors.primaryDark]}
             style={styles.logoBackground}
           >
             <Ionicons name="location" size={40} color="white" />
@@ -84,7 +85,7 @@ export default function SignInScreen() {
             <Ionicons 
               name="mail-outline" 
               size={20} 
-              color={emailFocused ? "#E8724A" : "#666"} 
+              color={emailFocused ? AppColors.primary : "#666"} 
             />
             <TextInput
               autoCapitalize="none"
@@ -105,7 +106,7 @@ export default function SignInScreen() {
             <Ionicons 
               name="lock-closed-outline" 
               size={20} 
-              color={passwordFocused ? "#E8724A" : "#666"} 
+              color={passwordFocused ? AppColors.primary : "#666"} 
             />
             <TextInput
               value={password}
@@ -217,8 +218,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   inputFocused: {
-    borderColor: "#E8724A",
-    backgroundColor: "rgba(232,114,74,0.08)",
+    borderColor: AppColors.primary,
+    backgroundColor: "rgba(210,124,92,0.08)",
   },
   input: {
     flex: 1,
@@ -239,7 +240,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   linkText: {
-    color: "#E8724A",
+    color: AppColors.primary,
     fontSize: 15,
     fontWeight: "600",
   },

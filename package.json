@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@clerk/clerk-expo": "^2.19.21",
+    "@expo-google-fonts/outfit": "^0.4.3",
     "@expo/vector-icons": "^15.0.3",
     "@pchmn/expo-material3-theme": "^1.4.0",
     "@react-native-community/datetimepicker": "^8.6.0",

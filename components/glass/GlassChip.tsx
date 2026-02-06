@@ -34,7 +34,7 @@ export function GlassChip({
       style={[
         styles.text,
         {
-          color: selected ? "#FFFFFF" : colors.onBackground,
+          color: selected ? colors.onPrimary : colors.onBackground,
         },
       ]}
     >

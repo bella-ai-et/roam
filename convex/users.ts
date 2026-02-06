@@ -30,6 +30,8 @@ export const createProfile = mutation({
       intent: v.optional(v.string()),
       destinationType: v.optional(v.string()),
     }))),
+    travelStyles: v.optional(v.array(v.string())),
+    lifestyleLabel: v.optional(v.string()),
   }, 
   handler: async (ctx, args) => { 
     return await ctx.db.insert("users", { ...args, bio: undefined }); 
@@ -48,7 +50,9 @@ export const updateProfile = mutation({
     lookingFor: v.optional(v.array(v.string())), 
     vanType: v.optional(v.string()), 
     vanBuildStatus: v.optional(v.string()), 
-    vanPhotoUrl: v.optional(v.string()), 
+    vanPhotoUrl: v.optional(v.string()),
+    travelStyles: v.optional(v.array(v.string())),
+    lifestyleLabel: v.optional(v.string()),
   }, 
   handler: async (ctx, { userId, ...updates }) => { 
     const filtered = Object.fromEntries(Object.entries(updates).filter(([_, v]) => v !== undefined)); 

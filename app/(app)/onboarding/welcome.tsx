@@ -4,6 +4,7 @@ import { Text, View, StyleSheet, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AppColors } from "@/lib/theme";
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -11,7 +12,7 @@ export default function WelcomeScreen() {
 
   return (
     <LinearGradient
-      colors={["#E8724A", "#D45A2E", "#0F0F0F"]}
+      colors={[AppColors.primary, AppColors.primaryDark, AppColors.background.dark]}
       locations={[0, 0.4, 1]}
       style={styles.container}
     >
@@ -111,7 +112,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   buttonText: {
-    color: "#E8724A",
+    color: AppColors.primary,
     fontSize: 17,
     fontWeight: "700",
   },

@@ -23,7 +23,9 @@ export default defineSchema({
       role: v.optional(v.string()),
       intent: v.optional(v.string()),
       destinationType: v.optional(v.string()),
-    }))), 
+    }))),
+    travelStyles: v.optional(v.array(v.string())),
+    lifestyleLabel: v.optional(v.string()),
   }).index("by_clerkId", ["clerkId"]), 
   swipes: defineTable({ 
     swiperId: v.id("users"), 

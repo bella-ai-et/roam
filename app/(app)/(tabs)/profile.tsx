@@ -133,17 +133,17 @@ export default function ProfileScreen() {
     const values = currentUser?.lookingFor ?? [];
     return values.map((value) => {
       if (value === "dating") {
-        return { value, label: "Dating", color: colors.primary, textColor: "#FFFFFF" };
+        return { value, label: "Dating", color: colors.primary, textColor: colors.onPrimary };
       }
       if (value === "friends") {
-        return { value, label: "Friends", color: "#4ECDC4", textColor: "#FFFFFF" };
+        return { value, label: "Friends", color: colors.secondary, textColor: colors.onSecondary };
       }
       if (value === "van_help" || value === "vanhelp") {
-        return { value, label: "Van Help", color: "#F4D03F", textColor: "#1A1A1A" };
+        return { value, label: "Van Help", color: colors.accent, textColor: colors.onBackground };
       }
       return { value, label: value, color: colors.surfaceVariant, textColor: colors.onSurfaceVariant };
     });
-  }, [currentUser?.lookingFor, colors.primary, colors.onSurfaceVariant, colors.surfaceVariant]);
+  }, [currentUser?.lookingFor, colors.primary, colors.onPrimary, colors.secondary, colors.onSecondary, colors.accent, colors.onBackground, colors.onSurfaceVariant, colors.surfaceVariant]);
 
   const routeStops = currentUser?.currentRoute ?? [];
 

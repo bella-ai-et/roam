@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { AdaptiveGlassView } from "@/lib/glass";
-import { useAppTheme } from "@/lib/theme";
+import { AppColors, useAppTheme } from "@/lib/theme";
 import { hapticButtonPress } from "@/lib/haptics";
 
 interface GlassButtonProps {
@@ -40,22 +40,13 @@ export function GlassButton({
     onPress();
   };
 
+  const textColor = variant === "primary" ? colors.onPrimary : colors.onBackground;
   const renderContent = () => (
     <>
       {loading ? (
-        <Text style={[styles.text, styles.primaryText]}>...</Text>
+        <Text style={[styles.text, { color: textColor }]}>...</Text>
       ) : (
-        <Text
-          style={[
-            styles.text,
-            variant === "primary"
-              ? styles.primaryText
-              : { color: colors.onBackground },
-            textStyle,
-          ]}
-        >
-          {title}
-        </Text>
+        <Text style={[styles.text, { color: textColor }, textStyle]}>{title}</Text>
       )}
     </>
   );
@@ -72,7 +63,7 @@ export function GlassButton({
         ]}
       >
         <LinearGradient
-          colors={["#E8724A", "#D45A2E"]}
+          colors={[AppColors.primary, AppColors.primaryDark]}
           style={styles.gradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -126,9 +117,6 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 17,
     fontWeight: "700",
-  },
-  primaryText: {
-    color: "#FFFFFF",
   },
   disabled: {
     opacity: 0.5,

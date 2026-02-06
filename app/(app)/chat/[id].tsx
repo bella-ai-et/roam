@@ -211,7 +211,7 @@ export default function ChatScreen() {
           hitSlop={8}
           style={[styles.sendButton, { backgroundColor: canSend ? colors.primary : colors.surfaceVariant }]}
         >
-          <Ionicons name="send" size={20} color={canSend ? "#FFFFFF" : colors.onSurfaceVariant} />
+          <Ionicons name="send" size={20} color={canSend ? colors.onPrimary : colors.onSurfaceVariant} />
         </Pressable>
       </AdaptiveGlassView>
     </KeyboardAvoidingView>
