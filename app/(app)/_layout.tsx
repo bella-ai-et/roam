@@ -1,7 +1,7 @@
 import { useQuery } from "convex/react";
 import { Stack } from "expo-router";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
-import { api } from "@/convex/_generated/api";
+import { api } from "@/convex/_generated/api"; 
 import { useAppTheme } from "@/lib/theme";     
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
@@ -31,40 +31,10 @@ export default function AppLayout() {
       {hasProfile && (
         <Stack.Screen
           name="edit-profile"
-          options={{ headerShown: false, presentation: "modal" }}
+          options={{ headerShown: true, title: "Edit Profile", presentation: "modal" }}
         />
       )}
-      {hasProfile && (
-        <Stack.Screen
-          name="edit-photos"
-          options={{ headerShown: false, presentation: "modal" }}
-        />
-      )}
-      {hasProfile && (
-        <Stack.Screen
-          name="edit-about"
-          options={{ headerShown: false, presentation: "modal" }}
-        />
-      )}
-      {hasProfile && (
-        <Stack.Screen
-          name="edit-interests"
-          options={{ headerShown: false, presentation: "modal" }}
-        />
-      )}
-      {hasProfile && (
-        <Stack.Screen
-          name="edit-van"
-          options={{ headerShown: false, presentation: "modal" }}
-        />
-      )}
-      {hasProfile && (
-        <Stack.Screen
-          name="edit-looking-for"
-          options={{ headerShown: false, presentation: "modal" }}
-        />
-      )}
-      {hasProfile && <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />}
+      {hasProfile && <Stack.Screen name="chat/[id]" options={{ headerShown: true, title: "Chat" }} />}
       {hasProfile && <Stack.Screen name="community/[id]" options={{ headerShown: false }} />}
       {hasProfile && <Stack.Screen name="community/create" options={{ headerShown: false }} />}
       {hasProfile && <Stack.Screen name="profile/[id]" options={{ presentation: "modal" }} />}
