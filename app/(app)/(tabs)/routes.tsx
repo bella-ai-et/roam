@@ -1,15 +1,15 @@
-import React, { useMemo, useState } from "react";
-import { Text, View, StyleSheet, Pressable, FlatList } from "react-native";
+import React, { useMemo } from "react";
+import { Text, View, StyleSheet, Pressable, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { Image } from "expo-image";
+import { format, isToday, isYesterday } from "date-fns";
 import { GlassHeader } from "@/components/glass";
 import { api } from "@/convex/_generated/api";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { AdaptiveGlassView } from "@/lib/glass";
 import { hapticButtonPress } from "@/lib/haptics";
 import { useAppTheme } from "@/lib/theme";
 
@@ -108,7 +108,52 @@ function MatchAvatar({ user }: { user: Doc<"users"> | null }) {
   );
 }
 
-function MatchCard({
+function formatMessageTime(timestamp?: number) {
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  if (isToday(date)) return format(date, "h:mm a");
+  if (isYesterday(date)) return "Yesterday";
+  return format(date, "MMM d");
+}
+
+function NewMatchAvatar({
+  user,
+  onPress,
+}: {
+  user: Doc<"users"> | null;
+  onPress: () => void;
+}) {
+  const { colors } = useAppTheme();
+  const normalized = normalizePhotoValue(user?.photos?.[0]);
+  const remote = isRemoteUrl(normalized);
+  const photoUrl = useQuery(
+    api.files.getUrl,
+    normalized && !remote ? { storageId: normalized as Id<"_storage"> } : "skip"
+  );
+
+  const imageUri = remote ? normalized : photoUrl;
+  const initials = getInitials(user?.name);
+
+  return (
+    <Pressable onPress={onPress} style={styles.newMatchItem}>
+      {imageUri ? (
+        <Image source={{ uri: imageUri }} style={styles.newMatchAvatar} contentFit="cover" />
+      ) : (
+        <View style={[styles.newMatchAvatar, { backgroundColor: colors.primaryContainer }]}>
+          <Text style={[styles.newMatchInitials, { color: colors.onPrimaryContainer }]}>
+            {initials}
+          </Text>
+        </View>
+      )}
+      <View style={[styles.newMatchBorder, { borderColor: colors.primary }]} />
+      <Text style={[styles.newMatchName, { color: colors.onBackground }]} numberOfLines={1}>
+        {user?.name?.split(" ")[0] ?? ""}
+      </Text>
+    </Pressable>
+  );
+}
+
+function ConversationRow({
   item,
   currentUser,
   onPress,
@@ -119,57 +164,46 @@ function MatchCard({
 }) {
   const { colors } = useAppTheme();
   const otherUser = item.otherUser;
-  const overlapLocation = getOverlapLocation(currentUser, otherUser);
   const lastMessageText = item.lastMessage?.content ?? "Say hi! 👋";
   const hasUnread = item.unreadCount > 0;
+  const timeText = formatMessageTime(item.lastMessage?.createdAt);
 
   return (
-    <Pressable onPress={onPress}>
-      <AdaptiveGlassView style={styles.card}>
-        <View style={styles.cardRow}>
-          <MatchAvatar user={otherUser} />
-          <View style={styles.cardInfo}>
-            <Text style={[styles.name, { color: colors.onBackground }]}>
-              {otherUser?.name ?? "Unknown"}
-            </Text>
-            <Text style={[styles.overlap, { color: colors.onSurfaceVariant }]}>
-              Paths cross near {overlapLocation}
-            </Text>
-            <Text
-              style={[
-                styles.preview,
-                { color: hasUnread ? colors.onBackground : colors.onSurfaceVariant },
-                hasUnread && styles.previewUnread,
-              ]}
-              numberOfLines={1}
-            >
-              {lastMessageText}
-            </Text>
-          </View>
+    <Pressable onPress={onPress} style={[styles.conversationRow, { borderBottomColor: colors.outline }]}>
+      <MatchAvatar user={otherUser} />
+      <View style={styles.conversationInfo}>
+        <View style={styles.conversationHeader}>
+          <Text
+            style={[
+              styles.conversationName,
+              { color: colors.onBackground },
+              hasUnread && styles.conversationNameUnread,
+            ]}
+            numberOfLines={1}
+          >
+            {otherUser?.name ?? "Unknown"}
+          </Text>
+          <Text style={[styles.conversationTime, { color: colors.onSurfaceVariant }]}>
+            {timeText}
+          </Text>
+        </View>
+        <View style={styles.conversationPreviewRow}>
+          <Text
+            style={[
+              styles.conversationPreview,
+              { color: hasUnread ? colors.onBackground : colors.onSurfaceVariant },
+              hasUnread && styles.conversationPreviewUnread,
+            ]}
+            numberOfLines={1}
+          >
+            {lastMessageText}
+          </Text>
           {hasUnread ? (
-            <View style={[styles.unreadBadge, { backgroundColor: colors.primary }]}>
-              <Text style={styles.unreadText}>{item.unreadCount}</Text>
-            </View>
+            <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />
           ) : null}
         </View>
-      </AdaptiveGlassView>
-    </Pressable>
-  );
-}
-
-function MapPlaceholder() {
-  const { colors } = useAppTheme();
-  return (
-    <View style={styles.emptyState}>
-      <View style={styles.mapIconRow}>
-        <Ionicons name="map-outline" size={56} color={colors.primary} />
-        <Ionicons name="location" size={28} color={colors.primary} />
       </View>
-      <Text style={[styles.emptyTitle, { color: colors.onBackground }]}>Interactive map coming soon</Text>
-      <Text style={[styles.emptyDescription, { color: colors.onSurfaceVariant }]}>
-        This will show your route and all matched routes on a single map.
-      </Text>
-    </View>
+    </Pressable>
   );
 }
 
@@ -177,10 +211,7 @@ function EmptyMatches() {
   const { colors } = useAppTheme();
   return (
     <View style={styles.emptyState}>
-      <View style={styles.emptyIconRow}>
-        <Ionicons name="people-outline" size={48} color={colors.primary} />
-        <Ionicons name="help-circle-outline" size={32} color={colors.primary} />
-      </View>
+      <Ionicons name="chatbubbles-outline" size={64} color={colors.onSurfaceVariant} />
       <Text style={[styles.emptyTitle, { color: colors.onBackground }]}>No matches yet</Text>
       <Text style={[styles.emptyDescription, { color: colors.onSurfaceVariant }]}>
         Start swiping on the Discover tab to find nomads on your route!
@@ -194,107 +225,162 @@ export default function RoutesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { currentUser } = useCurrentUser();
-  const [viewMode, setViewMode] = useState<"list" | "map">("list");
 
   const matches = useQuery(
     api.messages.getMatchesWithLastMessage,
     currentUser?._id ? { userId: currentUser._id } : "skip"
   ) as MatchWithLastMessage[] | undefined;
 
-  const data = useMemo(() => matches ?? [], [matches]);
-
-  const toggle = (
-    <View style={styles.toggleRow}>
-      <Pressable
-        onPress={() => setViewMode("list")}
-        style={[styles.togglePill, viewMode === "list" ? { backgroundColor: colors.primary } : { borderColor: colors.primary }]}
-      >
-        <Text style={[styles.toggleText, { color: viewMode === "list" ? colors.onPrimary : colors.primary }]}>List</Text>
-      </Pressable>
-      <Pressable
-        onPress={() => setViewMode("map")}
-        style={[styles.togglePill, viewMode === "map" ? { backgroundColor: colors.primary } : { borderColor: colors.primary }]}
-      >
-        <Text style={[styles.toggleText, { color: viewMode === "map" ? colors.onPrimary : colors.primary }]}>Map</Text>
-      </Pressable>
-    </View>
+  const allMatches = useMemo(() => matches ?? [], [matches]);
+  
+  // New matches = those without any messages yet
+  const newMatches = useMemo(
+    () => allMatches.filter((m) => !m.lastMessage),
+    [allMatches]
   );
+  
+  // Conversations = those with messages, sorted by most recent
+  const conversations = useMemo(
+    () =>
+      allMatches
+        .filter((m) => m.lastMessage)
+        .sort((a, b) => (b.lastMessage?.createdAt ?? 0) - (a.lastMessage?.createdAt ?? 0)),
+    [allMatches]
+  );
+
+  const navigateToChat = (matchId: string) => {
+    hapticButtonPress();
+    router.push(`/(app)/chat/${matchId}` as never);
+  };
+
+  const renderNewMatchesSection = () => {
+    if (newMatches.length === 0) return null;
+    return (
+      <View style={styles.newMatchesSection}>
+        <Text style={[styles.sectionTitle, { color: colors.onBackground }]}>New Matches</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.newMatchesScroll}
+        >
+          {newMatches.map((item) => (
+            <NewMatchAvatar
+              key={item.match._id}
+              user={item.otherUser}
+              onPress={() => navigateToChat(item.match._id)}
+            />
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  const renderContent = () => {
+    if (allMatches.length === 0) {
+      return <EmptyMatches />;
+    }
+
+    return (
+      <>
+        {renderNewMatchesSection()}
+        {conversations.length > 0 && (
+          <View style={styles.messagesSection}>
+            <Text style={[styles.sectionTitle, { color: colors.onBackground }]}>Messages</Text>
+            {conversations.map((item) => (
+              <ConversationRow
+                key={item.match._id}
+                item={item}
+                currentUser={currentUser}
+                onPress={() => navigateToChat(item.match._id)}
+              />
+            ))}
+          </View>
+        )}
+      </>
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <GlassHeader title="Routes" rightContent={toggle} />
-      {viewMode === "map" ? (
-        <View style={[styles.content, { paddingTop: insets.top + 90 }]}>
-          <MapPlaceholder />
-        </View>
-      ) : (
-        <FlatList
-          data={data}
-          keyExtractor={(item) => item.match._id}
-          renderItem={({ item }) => (
-            <MatchCard
-              item={item}
-              currentUser={currentUser}
-              onPress={() => {
-                hapticButtonPress();
-                router.push(`/(app)/chat/${String(item.match._id)}` as never);
-              }}
-            />
-          )}
-          ListEmptyComponent={<EmptyMatches />}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingTop: insets.top + 90 },
-          ]}
-        />
-      )}
+      <GlassHeader title="Matches" />
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 80 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {renderContent()}
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: {
+  container: {
     flex: 1,
-    paddingHorizontal: 20,
   },
-  listContent: {
-    paddingHorizontal: 20,
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
     paddingBottom: 24,
   },
-  toggleRow: {
-    flexDirection: "row",
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  newMatchesSection: {
+    marginBottom: 24,
+  },
+  newMatchesScroll: {
+    paddingHorizontal: 16,
+    gap: 16,
+  },
+  newMatchItem: {
     alignItems: "center",
-    columnGap: 6,
+    width: 72,
   },
-  togglePill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  toggleText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  card: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-  },
-  cardRow: {
-    flexDirection: "row",
+  newMatchAvatar: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     alignItems: "center",
+    justifyContent: "center",
   },
-  cardInfo: {
+  newMatchBorder: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    borderWidth: 2,
+  },
+  newMatchInitials: {
+    fontSize: 22,
+    fontWeight: "700",
+  },
+  newMatchName: {
+    fontSize: 13,
+    fontWeight: "500",
+    marginTop: 8,
+    textAlign: "center",
+  },
+  messagesSection: {
     flex: 1,
-    marginLeft: 12,
+  },
+  conversationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -302,65 +388,63 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
   },
-  name: {
-    fontSize: 17,
-    fontWeight: "600",
+  conversationInfo: {
+    flex: 1,
+    marginLeft: 14,
   },
-  overlap: {
+  conversationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  conversationName: {
+    fontSize: 16,
+    fontWeight: "600",
+    flex: 1,
+  },
+  conversationNameUnread: {
+    fontWeight: "700",
+  },
+  conversationTime: {
     fontSize: 13,
+    marginLeft: 8,
+  },
+  conversationPreviewRow: {
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 4,
   },
-  preview: {
+  conversationPreview: {
     fontSize: 14,
-    marginTop: 6,
+    flex: 1,
   },
-  previewUnread: {
+  conversationPreviewUnread: {
     fontWeight: "600",
   },
-  unreadBadge: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  unreadText: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "700",
+  unreadDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginLeft: 8,
   },
   emptyState: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
-    paddingTop: 40,
-  },
-  emptyIconRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    columnGap: 8,
-    marginBottom: 16,
-  },
-  mapIconRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    columnGap: 6,
-    marginBottom: 16,
+    paddingTop: 80,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "700",
     textAlign: "center",
+    marginTop: 20,
   },
   emptyDescription: {
-    fontSize: 14,
+    fontSize: 15,
     textAlign: "center",
-    marginTop: 8,
-    lineHeight: 20,
+    marginTop: 10,
+    lineHeight: 22,
     maxWidth: 280,
   },
 });

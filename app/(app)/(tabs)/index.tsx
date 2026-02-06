@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Text,
   View,
@@ -14,13 +14,12 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { PanGestureHandler, State } from "react-native-gesture-handler";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Extrapolate,
   interpolate,
   runOnJS,
   useAnimatedStyle,
-  useEvent,
   useSharedValue,
   withSpring,
   withTiming,
@@ -43,6 +42,7 @@ import {
   SWIPE_THRESHOLD,
   VAN_TYPES,
 } from "@/lib/constants";
+import { hapticButtonPress } from "@/lib/haptics";
 
 type RouteMatch = {
   user: Doc<"users">;
@@ -397,8 +397,11 @@ function MatchCelebration({
                   router.push(`/(app)/chat/${String(matchId)}` as never);
                 }
               }}
+              style={styles.matchButton}
             />
-            <GlassButton title="Keep Swiping" variant="secondary" onPress={onClose} />
+            <Pressable onPress={onClose} style={styles.keepSwipingButton}>
+              <Text style={styles.keepSwipingText}>Keep Swiping</Text>
+            </Pressable>
           </View>
         </View>
       </View>
@@ -424,58 +427,76 @@ export default function DiscoverScreen() {
   const [matchState, setMatchState] = useState<{ user: Doc<"users">; matchId: Id<"matches"> } | null>(null);
   const [applyingDemoRoute, setApplyingDemoRoute] = useState(false);
   const translateX = useSharedValue(0);
+  const isSwipingRef = useSharedValue(false);
   const activeMatchRef = useRef<RouteMatch | null>(null);
-  const swipeInProgressRef = useRef(false);
 
   const availableMatches = useMemo(() => matches ?? [], [matches]);
   const activeMatch = availableMatches[activeIndex];
 
   useEffect(() => {
     setActiveIndex(0);
-  }, [matches]);
+    translateX.value = 0;
+  }, [matches, translateX]);
 
   useEffect(() => {
     activeMatchRef.current = activeMatch ?? null;
   }, [activeMatch]);
 
-  const resetSwipeLock = () => {
-    swipeInProgressRef.current = false;
-  };
-
-  const handleSwipe = async (action: "like" | "reject") => {
-    const match = activeMatchRef.current;
-    if (!match || !currentUser?._id) {
-      resetSwipeLock();
-      return;
-    }
-    setActiveIndex((prev) => prev + 1);
-    translateX.value = 0;
-    try {
-      const result = await recordSwipe({
-        swiperId: currentUser._id,
-        swipedId: match.user._id,
-        action,
-      });
-      if (result?.matched) {
-        setMatchState({ user: match.user, matchId: result.matchId as Id<"matches"> });
+  const handleSwipeComplete = useCallback(
+    async (action: "like" | "reject") => {
+      const match = activeMatchRef.current;
+      if (!match || !currentUser?._id) {
+        isSwipingRef.value = false;
+        return;
       }
-    } finally {
-      resetSwipeLock();
-    }
-  };
-
-  const triggerSwipe = (action: "like" | "reject") => {
-    if (swipeInProgressRef.current) return;
-    swipeInProgressRef.current = true;
-    const direction = action === "like" ? 1 : -1;
-    translateX.value = withTiming(SCREEN_WIDTH * 1.2 * direction, { duration: 240 }, (finished) => {
-      if (finished) {
-        runOnJS(handleSwipe)(action);
-      } else {
-        runOnJS(resetSwipeLock)();
+      
+      hapticButtonPress();
+      
+      try {
+        const result = await recordSwipe({
+          swiperId: currentUser._id,
+          swipedId: match.user._id,
+          action,
+        });
+        
+        // Move to next card
+        setActiveIndex((prev) => prev + 1);
+        
+        // Reset translateX using withTiming with 0 duration for instant, synchronized reset
+        requestAnimationFrame(() => {
+          translateX.value = withTiming(0, { duration: 0 });
+        });
+        
+        if (result?.matched) {
+          setMatchState({ user: match.user, matchId: result.matchId as Id<"matches"> });
+        }
+      } finally {
+        isSwipingRef.value = false;
       }
-    });
-  };
+    },
+    [currentUser?._id, recordSwipe, isSwipingRef, translateX]
+  );
+
+  const triggerSwipe = useCallback(
+    (action: "like" | "reject") => {
+      if (isSwipingRef.value) return;
+      isSwipingRef.value = true;
+      
+      const direction = action === "like" ? 1 : -1;
+      translateX.value = withTiming(
+        SCREEN_WIDTH * 1.5 * direction,
+        { duration: 300 },
+        (finished) => {
+          if (finished) {
+            runOnJS(handleSwipeComplete)(action);
+          } else {
+            isSwipingRef.value = false;
+          }
+        }
+      );
+    },
+    [translateX, isSwipingRef, handleSwipeComplete]
+  );
 
   const applyDemoRoute = async () => {
     if (!currentUser?._id) return;
@@ -529,38 +550,59 @@ export default function DiscoverScreen() {
     }
   };
 
-  const gestureHandler = useEvent(
-    (event: any) => {
-      "worklet";
-      if (event.eventName === "onGestureHandlerEvent") {
+  const panGesture = Gesture.Pan()
+    .onStart(() => {
+      // Ensure we start from center position
+      if (Math.abs(translateX.value) > 10) {
+        translateX.value = 0;
+      }
+    })
+    .onUpdate((event) => {
+      if (!isSwipingRef.value) {
         translateX.value = event.translationX;
       }
-      if (event.eventName === "onGestureHandlerStateChange" && event.state === State.END) {
-        if (translateX.value > SWIPE_THRESHOLD && !swipeInProgressRef.current) {
-          swipeInProgressRef.current = true;
-          translateX.value = withTiming(SCREEN_WIDTH * 1.2, { duration: 240 }, (finished) => {
+    })
+    .onEnd((event) => {
+      if (isSwipingRef.value) return;
+      
+      const velocity = event.velocityX;
+      const shouldSwipeRight = translateX.value > SWIPE_THRESHOLD || velocity > 500;
+      const shouldSwipeLeft = translateX.value < -SWIPE_THRESHOLD || velocity < -500;
+      
+      if (shouldSwipeRight) {
+        isSwipingRef.value = true;
+        translateX.value = withTiming(
+          SCREEN_WIDTH * 1.5,
+          { duration: 300 },
+          (finished) => {
             if (finished) {
-              runOnJS(handleSwipe)("like");
+              runOnJS(handleSwipeComplete)("like");
             } else {
-              runOnJS(resetSwipeLock)();
+              isSwipingRef.value = false;
             }
-          });
-        } else if (translateX.value < -SWIPE_THRESHOLD && !swipeInProgressRef.current) {
-          swipeInProgressRef.current = true;
-          translateX.value = withTiming(-SCREEN_WIDTH * 1.2, { duration: 240 }, (finished) => {
+          }
+        );
+      } else if (shouldSwipeLeft) {
+        isSwipingRef.value = true;
+        translateX.value = withTiming(
+          -SCREEN_WIDTH * 1.5,
+          { duration: 300 },
+          (finished) => {
             if (finished) {
-              runOnJS(handleSwipe)("reject");
+              runOnJS(handleSwipeComplete)("reject");
             } else {
-              runOnJS(resetSwipeLock)();
+              isSwipingRef.value = false;
             }
-          });
-        } else {
-          translateX.value = withSpring(0);
-        }
+          }
+        );
+      } else {
+        // Return to center with spring animation
+        translateX.value = withSpring(0, {
+          damping: 20,
+          stiffness: 200,
+        });
       }
-    },
-    ["onGestureHandlerEvent", "onGestureHandlerStateChange"]
-  );
+    });
 
   const cardStyle = useAnimatedStyle(() => {
     const rotate = interpolate(
@@ -628,10 +670,9 @@ export default function DiscoverScreen() {
 
             if (isTop) {
               return (
-                <PanGestureHandler
+                <GestureDetector
                   key={match.user._id}
-                  onGestureEvent={gestureHandler}
-                  onHandlerStateChange={gestureHandler}
+                  gesture={panGesture}
                 >
                   <Animated.View
                     style={[
@@ -648,7 +689,7 @@ export default function DiscoverScreen() {
                       <Text style={[styles.overlayText, { color: colors.reject }]}>NOPE</Text>
                     </Animated.View>
                   </Animated.View>
-                </PanGestureHandler>
+                </GestureDetector>
               );
             }
 
@@ -1114,8 +1155,26 @@ const styles = StyleSheet.create({
   },
   matchButtons: {
     width: "100%",
-    gap: 12,
-    marginTop: 24,
+    gap: 16,
+    marginTop: 32,
+    paddingHorizontal: 20,
+  },
+  matchButton: {
+    height: 52,
+  },
+  keepSwipingButton: {
+    height: 52,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 26,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.4)",
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+  keepSwipingText: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   confetti: {
     position: "absolute",

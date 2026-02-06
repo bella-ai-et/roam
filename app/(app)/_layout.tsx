@@ -31,10 +31,40 @@ export default function AppLayout() {
       {hasProfile && (
         <Stack.Screen
           name="edit-profile"
-          options={{ headerShown: true, title: "Edit Profile", presentation: "modal" }}
+          options={{ headerShown: false, presentation: "modal" }}
         />
       )}
-      {hasProfile && <Stack.Screen name="chat/[id]" options={{ headerShown: true, title: "Chat" }} />}
+      {hasProfile && (
+        <Stack.Screen
+          name="edit-photos"
+          options={{ headerShown: false, presentation: "modal" }}
+        />
+      )}
+      {hasProfile && (
+        <Stack.Screen
+          name="edit-about"
+          options={{ headerShown: false, presentation: "modal" }}
+        />
+      )}
+      {hasProfile && (
+        <Stack.Screen
+          name="edit-interests"
+          options={{ headerShown: false, presentation: "modal" }}
+        />
+      )}
+      {hasProfile && (
+        <Stack.Screen
+          name="edit-van"
+          options={{ headerShown: false, presentation: "modal" }}
+        />
+      )}
+      {hasProfile && (
+        <Stack.Screen
+          name="edit-looking-for"
+          options={{ headerShown: false, presentation: "modal" }}
+        />
+      )}
+      {hasProfile && <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />}
       {hasProfile && <Stack.Screen name="community/[id]" options={{ headerShown: false }} />}
       {hasProfile && <Stack.Screen name="community/create" options={{ headerShown: false }} />}
       {hasProfile && <Stack.Screen name="profile/[id]" options={{ presentation: "modal" }} />}

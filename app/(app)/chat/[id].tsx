@@ -7,6 +7,7 @@ import {
   FlatList,
   TextInput,
   KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -80,6 +81,13 @@ export default function ChatScreen() {
   const matchId = typeof params.id === "string" ? (params.id as Id<"matches">) : undefined;
   const [messageText, setMessageText] = useState("");
 
+  const handleSend = () => {
+    if (!messageText.trim() || !matchId || !currentUser?._id) return;
+    sendMessage({ matchId, senderId: currentUser._id, content: messageText.trim() });
+    setMessageText("");
+    hapticButtonPress();
+  };
+
   const messages = useQuery(api.messages.getMessages, matchId ? { matchId } : "skip");
   const matchEntries = useQuery(
     api.messages.getMatchesWithLastMessage,
@@ -110,21 +118,23 @@ export default function ChatScreen() {
   const canSend = messageText.trim().length > 0;
 
   return (
-    <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.background }]} behavior="padding">
-      <AdaptiveGlassView style={[styles.header, { paddingTop: insets.top + 10, borderBottomColor: colors.outline }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={0}
+    >
+      <AdaptiveGlassView style={[styles.header, { paddingTop: insets.top + 12, borderBottomColor: colors.outline }]}>
         <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()} style={styles.headerSide}>
-            <Ionicons name="chevron-back" size={22} color={colors.onBackground} />
+          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerBack}>
+            <Ionicons name="chevron-back" size={24} color={colors.onBackground} />
           </Pressable>
           <View style={styles.headerCenter}>
             <HeaderAvatar user={otherUser} />
-            <Text style={[styles.headerName, { color: colors.onBackground }]}>
+            <Text style={[styles.headerName, { color: colors.onBackground }]} numberOfLines={1}>
               {otherUser?.name ?? "Chat"}
             </Text>
           </View>
-          <Pressable onPress={() => {}} style={styles.headerSide}>
-            <Ionicons name="ellipsis-horizontal" size={22} color={colors.onBackground} />
-          </Pressable>
+          <View style={styles.headerSpacer} />
         </View>
       </AdaptiveGlassView>
 
@@ -180,7 +190,7 @@ export default function ChatScreen() {
       <AdaptiveGlassView
         style={[
           styles.inputBar,
-          { paddingBottom: insets.bottom + 10, borderTopColor: colors.outline },
+          { paddingBottom: Math.max(insets.bottom, 12), borderTopColor: colors.outline },
         ]}
       >
         <TextInput
@@ -188,21 +198,20 @@ export default function ChatScreen() {
           onChangeText={setMessageText}
           placeholder="Message..."
           placeholderTextColor={colors.onSurfaceVariant}
-          style={[styles.input, { color: colors.onBackground }]}
+          style={[styles.input, { color: colors.onBackground, backgroundColor: colors.surfaceVariant }]}
           multiline
           maxLength={800}
+          returnKeyType="send"
+          blurOnSubmit={false}
+          onSubmitEditing={handleSend}
         />
         <Pressable
-          onPress={() => {
-            if (!canSend || !matchId || !currentUser?._id) return;
-            sendMessage({ matchId, senderId: currentUser._id, content: messageText.trim() });
-            setMessageText("");
-            hapticButtonPress();
-          }}
+          onPress={handleSend}
           disabled={!canSend}
-          style={[styles.sendButton, { opacity: canSend ? 1 : 0.4 }]}
+          hitSlop={8}
+          style={[styles.sendButton, { backgroundColor: canSend ? colors.primary : colors.surfaceVariant }]}
         >
-          <Ionicons name="send-outline" size={22} color={colors.primary} />
+          <Ionicons name="send" size={20} color={canSend ? "#FFFFFF" : colors.onSurfaceVariant} />
         </Pressable>
       </AdaptiveGlassView>
     </KeyboardAvoidingView>
@@ -215,25 +224,29 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
   },
-  headerSide: {
-    width: 40,
+  headerBack: {
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
+    marginLeft: -8,
+  },
+  headerSpacer: {
+    width: 44,
   },
   headerCenter: {
     flex: 1,
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "center",
-    columnGap: 8,
+    columnGap: 10,
   },
   headerAvatar: {
     width: 40,
@@ -272,23 +285,27 @@ const styles = StyleSheet.create({
   },
   inputBar: {
     flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 10,
+    alignItems: "flex-end",
+    paddingHorizontal: 12,
+    paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 10,
   },
   input: {
     flex: 1,
-    fontSize: 15,
-    paddingVertical: 6,
-    paddingRight: 12,
+    fontSize: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     maxHeight: 120,
+    minHeight: 44,
+    borderRadius: 22,
   },
   sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 0,
   },
 });

@@ -92,9 +92,29 @@ export default function ProfileScreen() {
     signOut();
   };
 
-  const handleEditProfile = () => {
+  const handleEditPhotos = () => {
     hapticButtonPress();
-    router.push("/(app)/edit-profile");
+    router.push("/(app)/edit-photos");
+  };
+
+  const handleEditAbout = () => {
+    hapticButtonPress();
+    router.push("/(app)/edit-about");
+  };
+
+  const handleEditInterests = () => {
+    hapticButtonPress();
+    router.push("/(app)/edit-interests");
+  };
+
+  const handleEditVan = () => {
+    hapticButtonPress();
+    router.push("/(app)/edit-van");
+  };
+
+  const handleEditLookingFor = () => {
+    hapticButtonPress();
+    router.push("/(app)/edit-looking-for");
   };
 
   const formatRouteDate = (value: string) => {
@@ -136,43 +156,54 @@ export default function ProfileScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.carouselWrapper}>
-          {photos.length > 0 ? (
-            <FlatList
-              data={photos}
-              keyExtractor={(item, index) => `${item}-${index}`}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              renderItem={({ item }) => <PhotoItem storageId={item} />}
-              onViewableItemsChanged={onViewableItemsChanged}
-              viewabilityConfig={viewabilityConfig}
-            />
-          ) : (
-            <View style={[styles.photoPlaceholder, { backgroundColor: colors.surfaceVariant }]}>
-              <Ionicons name="camera-outline" size={36} color={colors.onSurfaceVariant} />
-            </View>
-          )}
+        <View style={styles.photoSection}>
+          <View style={styles.photoHeader}>
+            <Text style={[styles.photoHeaderTitle, { color: colors.onBackground }]}>Photos</Text>
+            <Pressable onPress={handleEditPhotos} hitSlop={10}>
+              <Text style={[styles.editLink, { color: colors.primary }]}>Edit</Text>
+            </Pressable>
+          </View>
+          <View style={styles.carouselWrapper}>
+            {photos.length > 0 ? (
+              <FlatList
+                data={photos}
+                keyExtractor={(item, index) => `${item}-${index}`}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                renderItem={({ item }) => <PhotoItem storageId={item} />}
+                onViewableItemsChanged={onViewableItemsChanged}
+                viewabilityConfig={viewabilityConfig}
+              />
+            ) : (
+              <Pressable onPress={handleEditPhotos}>
+                <View style={[styles.photoPlaceholder, { backgroundColor: colors.surfaceVariant }]}>
+                  <Ionicons name="camera-outline" size={36} color={colors.onSurfaceVariant} />
+                  <Text style={[styles.addPhotoText, { color: colors.onSurfaceVariant }]}>Add Photos</Text>
+                </View>
+              </Pressable>
+            )}
 
-          {photos.length > 0 && (
-            <View style={styles.dotsRow}>
-              {photos.map((_, index) => (
-                <View
-                  key={`dot-${index}`}
-                  style={[
-                    styles.dot,
-                    {
-                      backgroundColor:
-                        index === activePhotoIndex
-                          ? colors.primary
-                          : colors.onSurfaceVariant,
-                      opacity: index === activePhotoIndex ? 1 : 0.35,
-                    },
-                  ]}
-                />
-              ))}
-            </View>
-          )}
+            {photos.length > 0 && (
+              <View style={styles.dotsRow}>
+                {photos.map((_, index) => (
+                  <View
+                    key={`dot-${index}`}
+                    style={[
+                      styles.dot,
+                      {
+                        backgroundColor:
+                          index === activePhotoIndex
+                            ? colors.primary
+                            : colors.onSurfaceVariant,
+                        opacity: index === activePhotoIndex ? 1 : 0.35,
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
         </View>
 
         <View style={styles.nameRow}>
@@ -193,33 +224,52 @@ export default function ProfileScreen() {
           </Pressable>
         )}
 
-        <View style={styles.section}>
+        <Pressable onPress={handleEditAbout} style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>About Me</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceVariant} />
+          </View>
           {currentUser?.bio ? (
-            <Text style={[styles.bio, { color: colors.onSurfaceVariant }]}>{currentUser.bio}</Text>
+            <Text style={[styles.bio, { color: colors.onSurfaceVariant }]} numberOfLines={3}>
+              {currentUser.bio}
+            </Text>
           ) : (
             <Text style={[styles.bioMuted, { color: colors.onSurfaceVariant }]}>
               Add a bio to your profile
             </Text>
           )}
-        </View>
+        </Pressable>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Interests</Text>
-          <View style={styles.chipRow}>
-            {interests.map((interest) => (
-              <GlassChip
-                key={interest.name}
-                label={interest.name}
-                emoji={interest.emoji}
-                selected
-                onPress={() => {}}
-                disabled
-              />
-            ))}
+        <Pressable onPress={handleEditInterests} style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Interests</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceVariant} />
           </View>
-        </View>
+          {interests.length > 0 ? (
+            <View style={styles.chipRow}>
+              {interests.map((interest) => (
+                <GlassChip
+                  key={interest.name}
+                  label={interest.name}
+                  emoji={interest.emoji}
+                  selected
+                  onPress={() => {}}
+                  disabled
+                />
+              ))}
+            </View>
+          ) : (
+            <Text style={[styles.bioMuted, { color: colors.onSurfaceVariant }]}>
+              Add your interests
+            </Text>
+          )}
+        </Pressable>
 
-        <View style={styles.section}>
+        <Pressable onPress={handleEditVan} style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>My Van</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceVariant} />
+          </View>
           <AdaptiveGlassView style={styles.vanCard}>
             <View style={styles.vanRow}>
               <View style={styles.vanLabelRow}>
@@ -233,11 +283,14 @@ export default function ProfileScreen() {
               </Text>
             </View>
           </AdaptiveGlassView>
-        </View>
+        </Pressable>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Current Route</Text>
-        {routeStops.length > 0 ? (
+        <Pressable onPress={() => router.push("/(app)/(tabs)/routes")} style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Current Route</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceVariant} />
+          </View>
+          {routeStops.length > 0 ? (
             <View style={styles.routeList}>
               {routeStops.map((stop, index) => (
                 <View key={`${stop.location.name}-${index}`} style={styles.routeRow}>
@@ -263,22 +316,27 @@ export default function ProfileScreen() {
               No route set — add one to find matches
             </Text>
           )}
-        </View>
+        </Pressable>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Looking For</Text>
-          <View style={styles.lookingForRow}>
-            {lookingForChips.map((chip) => (
-              <View key={chip.value} style={[styles.lookingForChip, { backgroundColor: chip.color }]}>
-                <Text style={[styles.lookingForText, { color: chip.textColor }]}>{chip.label}</Text>
-              </View>
-            ))}
+        <Pressable onPress={handleEditLookingFor} style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Looking For</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceVariant} />
           </View>
-        </View>
-
-        <View style={styles.section}>
-          <GlassButton title="Edit Profile" variant="secondary" onPress={handleEditProfile} />
-        </View>
+          {lookingForChips.length > 0 ? (
+            <View style={styles.lookingForRow}>
+              {lookingForChips.map((chip) => (
+                <View key={chip.value} style={[styles.lookingForChip, { backgroundColor: chip.color }]}>
+                  <Text style={[styles.lookingForText, { color: chip.textColor }]}>{chip.label}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={[styles.bioMuted, { color: colors.onSurfaceVariant }]}>
+              What are you looking for?
+            </Text>
+          )}
+        </Pressable>
 
         <Pressable onPress={handleSignOut} style={styles.signOutButton}>
           <Text style={[styles.signOutText, { color: colors.error }]}>Sign Out</Text>
@@ -293,9 +351,31 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 24,
   },
-  carouselWrapper: {
+  photoSection: {
     marginHorizontal: -24,
+    marginBottom: 16,
   },
+  photoHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    marginBottom: 12,
+  },
+  photoHeaderTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  editLink: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  addPhotoText: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: 8,
+  },
+  carouselWrapper: {},
   photo: {
     width: SCREEN_WIDTH,
     height: 360,
@@ -354,6 +434,12 @@ const styles = StyleSheet.create({
   },
   section: {
     marginTop: 20,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
   },
   bio: {
     fontSize: 15,
