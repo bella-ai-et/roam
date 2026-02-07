@@ -101,5 +101,18 @@ export const BUILD_CATEGORIES = [
   { value: "insulation", label: "Insulation", emoji: "🧱" },
   { value: "ventilation", label: "Ventilation", emoji: "💨" },
   { value: "showcase", label: "Showcase", emoji: "✨" },
+  { value: "remote_work", label: "Remote Work", emoji: "💻" },
 ] as const;
 export type BuildCategory = (typeof BUILD_CATEGORIES)[number]["value"];
+
+export const CATEGORY_COLORS: Record<string, { bg: string; darkBg: string; text: string; darkText: string }> = {
+  electrical: { bg: "#FFFBEB", darkBg: "rgba(245,158,11,0.12)", text: "#D97706", darkText: "#FBBF24" },
+  plumbing:   { bg: "#EFF6FF", darkBg: "rgba(59,130,246,0.12)", text: "#2563EB", darkText: "#60A5FA" },
+  solar:      { bg: "#FFF7ED", darkBg: "rgba(249,115,22,0.12)", text: "#EA580C", darkText: "#FB923C" },
+  remote_work:{ bg: "#ECFDF5", darkBg: "rgba(16,185,129,0.12)", text: "#059669", darkText: "#34D399" },
+  interior:   { bg: "#FDF2F8", darkBg: "rgba(236,72,153,0.12)", text: "#DB2777", darkText: "#F472B6" },
+  mechanical: { bg: "#F5F3FF", darkBg: "rgba(139,92,246,0.12)", text: "#7C3AED", darkText: "#A78BFA" },
+  insulation: { bg: "#FEF2F2", darkBg: "rgba(239,68,68,0.12)",  text: "#DC2626", darkText: "#F87171" },
+  ventilation:{ bg: "#F0F9FF", darkBg: "rgba(14,165,233,0.12)", text: "#0284C7", darkText: "#38BDF8" },
+  showcase:   { bg: "#FFFBEB", darkBg: "rgba(234,179,8,0.12)",  text: "#CA8A04", darkText: "#FACC15" },
+};

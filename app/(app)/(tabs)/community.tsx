@@ -5,11 +5,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "convex/react";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { GlassHeader } from "@/components/glass";
 import { api } from "@/convex/_generated/api";
 import { Doc, Id } from "@/convex/_generated/dataModel";
-import { BUILD_CATEGORIES, VAN_TYPES } from "@/lib/constants";
-import { AdaptiveGlassView } from "@/lib/glass";
+import { BUILD_CATEGORIES, CATEGORY_COLORS, VAN_TYPES } from "@/lib/constants";
 import { hapticButtonPress, hapticSelection } from "@/lib/haptics";
 import { useAppTheme } from "@/lib/theme";
 
@@ -71,7 +69,8 @@ function Avatar({ user }: { user: Doc<"users"> | null }) {
   );
 }
 
-function PhotoThumb({ storageId }: { storageId: string }) {
+function HeroImage({ storageId }: { storageId: string }) {
+  const { isDark } = useAppTheme();
   const normalized = normalizePhotoValue(storageId);
   const remote = isRemoteUrl(normalized);
   const photoUrl = useQuery(
@@ -79,19 +78,24 @@ function PhotoThumb({ storageId }: { storageId: string }) {
     normalized && !remote ? { storageId: normalized as Id<"_storage"> } : "skip"
   );
 
-  if (remote && normalized) {
-    return <Image source={{ uri: normalized }} style={styles.photoThumb} contentFit="cover" />;
+  const uri = remote && normalized ? normalized : photoUrl;
+
+  if (!uri) {
+    return (
+      <View
+        style={[
+          styles.heroImage,
+          { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)" },
+        ]}
+      />
+    );
   }
 
-  if (!photoUrl) {
-    return <View style={styles.photoPlaceholder} />;
-  }
-
-  return <Image source={{ uri: photoUrl }} style={styles.photoThumb} contentFit="cover" />;
+  return <Image source={{ uri }} style={styles.heroImage} contentFit="cover" />;
 }
 
 export default function CommunityScreen() {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -103,22 +107,25 @@ export default function CommunityScreen() {
     ? BUILD_CATEGORIES.find((item) => item.value === selectedCategory)?.label ?? "Category"
     : "All";
 
+  const cardBg = isDark ? "#1A1A1A" : "#FFFFFF";
+  const cardBorder = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)";
+  const separatorColor = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
+  const mutedText = isDark ? "#94A3B8" : "#94A3B8";
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <GlassHeader
-        title="Community"
-        rightContent={
-          <Pressable
-            onPress={() => {
-              hapticButtonPress();
-              router.push("/(app)/community/create");
-            }}
-            style={[styles.addButton, { backgroundColor: colors.primary }]}
-          >
-            <Ionicons name="add" size={20} color="white" />
-          </Pressable>
-        }
-      />
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <Text style={[styles.headerTitle, { color: colors.onBackground }]}>Community</Text>
+        <Pressable
+          onPress={() => {
+            hapticButtonPress();
+            router.push("/(app)/community/create");
+          }}
+          style={[styles.addButton, { backgroundColor: colors.primary }]}
+        >
+          <Ionicons name="add" size={20} color="white" />
+        </Pressable>
+      </View>
       <FlatList
         data={data}
         keyExtractor={(item) => item.post._id}
@@ -191,8 +198,13 @@ export default function CommunityScreen() {
         }
         renderItem={({ item }) => {
           const category = BUILD_CATEGORIES.find((entry) => entry.value === item.post.category);
-          const previewText =
-            item.post.content.length > 80 ? `${item.post.content.slice(0, 80)}...` : item.post.content;
+          const catColors = CATEGORY_COLORS[item.post.category];
+          const badgeBg = catColors
+            ? isDark ? catColors.darkBg : catColors.bg
+            : colors.primaryContainer;
+          const badgeText = catColors
+            ? isDark ? catColors.darkText : catColors.text
+            : colors.onPrimaryContainer;
           const vanType = item.post.vanType
             ? VAN_TYPES.find((type) => type.value === item.post.vanType)
             : null;
@@ -203,61 +215,65 @@ export default function CommunityScreen() {
                 router.push(`/(app)/community/${item.post._id}`);
               }}
             >
-              <AdaptiveGlassView style={styles.card}>
+              <View
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: cardBg,
+                    borderColor: cardBorder,
+                  },
+                ]}
+              >
                 <View style={styles.cardTopRow}>
-                  <View style={[styles.categoryBadge, { backgroundColor: colors.primaryContainer }]}>
-                    <Text style={[styles.categoryText, { color: colors.onPrimaryContainer }]}>
-                      {category?.emoji ?? "🛠️"} {category?.label ?? item.post.category}
+                  <View style={[styles.categoryBadge, { backgroundColor: badgeBg }]}>
+                    <Text style={[styles.categoryText, { color: badgeText }]}>
+                      {category?.emoji ?? "🛠️"} {(category?.label ?? item.post.category).toUpperCase()}
                     </Text>
                   </View>
                   <View style={styles.spacer} />
                   <View style={styles.upvoteRow}>
-                    <Ionicons name="arrow-up" size={14} color={colors.onSurfaceVariant} />
-                    <Text style={[styles.metaText, { color: colors.onSurfaceVariant }]}>{item.post.upvotes}</Text>
+                    <Ionicons name="arrow-up" size={16} color={mutedText} />
+                    <Text style={[styles.upvoteText, { color: mutedText }]}>{item.post.upvotes}</Text>
                   </View>
                 </View>
                 <Text style={[styles.cardTitle, { color: colors.onBackground }]} numberOfLines={2}>
                   {item.post.title}
                 </Text>
                 <Text style={[styles.preview, { color: colors.onSurfaceVariant }]} numberOfLines={2}>
-                  {previewText}
+                  {item.post.content}
                 </Text>
                 {item.post.photos.length > 0 && (
-                  <View style={styles.photoRow}>
-                    {item.post.photos.slice(0, 3).map((photo) => (
-                      <PhotoThumb key={photo} storageId={photo} />
-                    ))}
+                  <View style={styles.heroImageWrapper}>
+                    <HeroImage storageId={item.post.photos[0]} />
                   </View>
                 )}
-                <View style={styles.cardBottomRow}>
+                <View style={[styles.cardBottomRow, { borderTopColor: separatorColor }]}>
                   <View style={styles.authorRow}>
                     <Avatar user={item.author} />
-                    <Text style={[styles.authorName, { color: colors.onBackground }]}>
-                      {item.author?.name ?? "Unknown"}
+                    <View>
+                      <Text style={[styles.authorName, { color: colors.onBackground }]}>
+                        {item.author?.name ?? "Unknown"}
+                      </Text>
+                      {(item.post.vanType || item.author?.vanType) && (
+                        <View style={[styles.vanBadge, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)" }]}>
+                          <Text style={[styles.vanText, { color: colors.primary }]}>
+                            {vanType?.emoji ?? "🚐"} {(vanType?.label ?? item.post.vanType ?? item.author?.vanType ?? "").toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                  <View style={styles.metaRow}>
+                    <View style={styles.replyRow}>
+                      <Ionicons name="chatbubble-outline" size={13} color={mutedText} />
+                      <Text style={[styles.metaText, { color: mutedText }]}>{item.replyCount}</Text>
+                    </View>
+                    <Text style={[styles.metaText, { color: mutedText }]}>
+                      {formatPostTime(item.post.createdAt)}
                     </Text>
-                    {item.post.vanType && (
-                      <View style={[styles.vanBadge, { backgroundColor: colors.surfaceVariant }]}>
-                        <Text style={[styles.vanText, { color: colors.onSurfaceVariant }]}>
-                          {vanType?.emoji ?? "🚐"} {vanType?.label ?? item.post.vanType}
-                        </Text>
-                      </View>
-                    )}
-                    {item.author?.vanVerified && (
-                      <View style={styles.verifiedBadge}>
-                        <Ionicons name="shield-checkmark" size={12} color={colors.like} />
-                        <Text style={[styles.verifiedText, { color: colors.like }]}>✓</Text>
-                      </View>
-                    )}
                   </View>
-                  <View style={styles.replyRow}>
-                    <Ionicons name="chatbubble-outline" size={14} color={colors.onSurfaceVariant} />
-                    <Text style={[styles.metaText, { color: colors.onSurfaceVariant }]}>{item.replyCount}</Text>
-                  </View>
-                  <Text style={[styles.metaText, { color: colors.onSurfaceVariant }]}>
-                    {formatPostTime(item.post.createdAt)}
-                  </Text>
                 </View>
-              </AdaptiveGlassView>
+              </View>
             </Pressable>
           );
         }}
@@ -268,23 +284,45 @@ export default function CommunityScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  header: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 26,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
   listContent: {
     paddingHorizontal: 20,
   },
   addButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#B65A3D",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   filterRow: {
-    paddingBottom: 16,
-    gap: 8,
+    paddingBottom: 20,
+    gap: 10,
   },
   filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
     borderRadius: 50,
   },
   filterText: {
@@ -293,70 +331,84 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 10,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 8,
+    elevation: 0,
   },
   cardTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 14,
   },
   categoryBadge: {
-    borderRadius: 50,
+    borderRadius: 8,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   categoryText: {
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.8,
   },
   spacer: { flex: 1 },
   upvoteRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 3,
+  },
+  upvoteText: {
+    fontSize: 14,
+    fontWeight: "500",
   },
   cardTitle: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: "700",
+    lineHeight: 26,
+    marginBottom: 6,
   },
   preview: {
     fontSize: 14,
-    marginTop: 6,
     lineHeight: 20,
+    marginBottom: 4,
   },
-  photoRow: {
-    flexDirection: "row",
-    gap: 6,
+  heroImageWrapper: {
     marginTop: 12,
+    marginBottom: 4,
+    borderRadius: 12,
+    overflow: "hidden",
   },
-  photoThumb: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-  },
-  photoPlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    backgroundColor: "rgba(0,0,0,0.08)",
+  heroImage: {
+    width: "100%",
+    height: 192,
+    borderRadius: 12,
   },
   cardBottomRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 12,
-    gap: 10,
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
   },
   authorRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 10,
     flex: 1,
   },
   avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "rgba(182,90,61,0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -366,25 +418,23 @@ const styles = StyleSheet.create({
   },
   authorName: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   vanBadge: {
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 20,
+    borderRadius: 4,
+    marginTop: 2,
   },
   vanText: {
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
-  verifiedBadge: {
+  metaRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
-  },
-  verifiedText: {
-    fontSize: 11,
-    fontWeight: "700",
+    gap: 14,
   },
   replyRow: {
     flexDirection: "row",
@@ -392,7 +442,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   metaText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "500",
   },
   emptyState: {
