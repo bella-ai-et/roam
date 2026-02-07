@@ -15,6 +15,7 @@ import type * as routeMatching from "../routeMatching.js";
 import type * as sampleData_abuDhabiProfiles from "../sampleData/abuDhabiProfiles.js";
 import type * as seed from "../seed.js";
 import type * as swipes from "../swipes.js";
+import type * as syncs from "../syncs.js";
 import type * as users from "../users.js";
 
 import type {
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   "sampleData/abuDhabiProfiles": typeof sampleData_abuDhabiProfiles;
   seed: typeof seed;
   swipes: typeof swipes;
+  syncs: typeof syncs;
   users: typeof users;
 }>;
 

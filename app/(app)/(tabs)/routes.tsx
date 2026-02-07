@@ -4,215 +4,38 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
-import { Image } from "expo-image";
-import { format, isToday, isYesterday } from "date-fns";
-import { GlassHeader } from "@/components/glass";
 import { api } from "@/convex/_generated/api";
-import { Doc, Id } from "@/convex/_generated/dataModel";
+import { Doc } from "@/convex/_generated/dataModel";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { hapticButtonPress } from "@/lib/haptics";
-import { useAppTheme } from "@/lib/theme";
+import { useAppTheme, AppColors } from "@/lib/theme";
+import { RouteOverlapAvatar } from "@/components/syncs/RouteOverlapAvatar";
+import { SyncConversationRow } from "@/components/syncs/SyncConversationRow";
 
-type MatchWithLastMessage = {
+type SyncEntry = {
   match: Doc<"matches">;
   otherUser: Doc<"users"> | null;
   lastMessage: Doc<"messages"> | null;
   unreadCount: number;
+  syncStatus: string;
+  syncLocation: string;
+  syncDaysUntil: number | null;
+  movingTo: string | null;
 };
 
-const DISTANCE_THRESHOLD_KM = 150;
+type RouteOverlap = {
+  matchId: string;
+  otherUser: Doc<"users"> | null;
+  overlapLocation: string;
+  syncStatus: string;
+} | null;
 
-function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371;
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-function datesOverlap(start1: string, end1: string, start2: string, end2: string): boolean {
-  const s1 = new Date(start1).getTime();
-  const e1 = new Date(end1).getTime();
-  const s2 = new Date(start2).getTime();
-  const e2 = new Date(end2).getTime();
-  return s1 <= e2 && s2 <= e1;
-}
-
-function getOverlapLocation(currentUser?: Doc<"users"> | null, otherUser?: Doc<"users"> | null) {
-  if (!currentUser?.currentRoute || !otherUser?.currentRoute) {
-    return otherUser?.currentRoute?.[0]?.location?.name ?? "Unknown";
-  }
-  for (const myStop of currentUser.currentRoute) {
-    for (const theirStop of otherUser.currentRoute) {
-      const dist = haversineDistance(
-        myStop.location.latitude,
-        myStop.location.longitude,
-        theirStop.location.latitude,
-        theirStop.location.longitude
-      );
-      if (
-        dist <= DISTANCE_THRESHOLD_KM &&
-        datesOverlap(myStop.arrivalDate, myStop.departureDate, theirStop.arrivalDate, theirStop.departureDate)
-      ) {
-        return myStop.location.name || theirStop.location.name || "Unknown";
-      }
-    }
-  }
-  return otherUser.currentRoute?.[0]?.location?.name ?? "Unknown";
-}
-
-function getInitials(name?: string) {
-  if (!name) return "";
-  const parts = name.trim().split(" ").filter(Boolean);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
-}
-
-function isRemoteUrl(value?: string) {
-  if (!value) return false;
-  const trimmed = value.trim();
-  return trimmed.startsWith("http://") || trimmed.startsWith("https://");
-}
-
-function normalizePhotoValue(value?: string) {
-  if (!value) return undefined;
-  return value.replace(/`/g, "").trim();
-}
-
-function MatchAvatar({ user }: { user: Doc<"users"> | null }) {
-  const { colors } = useAppTheme();
-  const normalized = normalizePhotoValue(user?.photos?.[0]);
-  const remote = isRemoteUrl(normalized);
-  const photoUrl = useQuery(
-    api.files.getUrl,
-    normalized && !remote ? { storageId: normalized as Id<"_storage"> } : "skip"
-  );
-
-  if (remote && normalized) {
-    return <Image source={{ uri: normalized }} style={styles.avatar} contentFit="cover" />;
-  }
-
-  if (photoUrl) {
-    return <Image source={{ uri: photoUrl }} style={styles.avatar} contentFit="cover" />;
-  }
-
-  const initials = getInitials(user?.name);
-  return (
-    <View style={[styles.avatar, { backgroundColor: colors.primaryContainer }]}>
-      <Text style={[styles.avatarInitials, { color: colors.onPrimaryContainer }]}>{initials}</Text>
-    </View>
-  );
-}
-
-function formatMessageTime(timestamp?: number) {
-  if (!timestamp) return "";
-  const date = new Date(timestamp);
-  if (isToday(date)) return format(date, "h:mm a");
-  if (isYesterday(date)) return "Yesterday";
-  return format(date, "MMM d");
-}
-
-function NewMatchAvatar({
-  user,
-  onPress,
-}: {
-  user: Doc<"users"> | null;
-  onPress: () => void;
-}) {
-  const { colors } = useAppTheme();
-  const normalized = normalizePhotoValue(user?.photos?.[0]);
-  const remote = isRemoteUrl(normalized);
-  const photoUrl = useQuery(
-    api.files.getUrl,
-    normalized && !remote ? { storageId: normalized as Id<"_storage"> } : "skip"
-  );
-
-  const imageUri = remote ? normalized : photoUrl;
-  const initials = getInitials(user?.name);
-
-  return (
-    <Pressable onPress={onPress} style={styles.newMatchItem}>
-      {imageUri ? (
-        <Image source={{ uri: imageUri }} style={styles.newMatchAvatar} contentFit="cover" />
-      ) : (
-        <View style={[styles.newMatchAvatar, { backgroundColor: colors.primaryContainer }]}>
-          <Text style={[styles.newMatchInitials, { color: colors.onPrimaryContainer }]}>
-            {initials}
-          </Text>
-        </View>
-      )}
-      <View style={[styles.newMatchBorder, { borderColor: colors.primary }]} />
-      <Text style={[styles.newMatchName, { color: colors.onBackground }]} numberOfLines={1}>
-        {user?.name?.split(" ")[0] ?? ""}
-      </Text>
-    </Pressable>
-  );
-}
-
-function ConversationRow({
-  item,
-  currentUser,
-  onPress,
-}: {
-  item: MatchWithLastMessage;
-  currentUser?: Doc<"users"> | null;
-  onPress: () => void;
-}) {
-  const { colors } = useAppTheme();
-  const otherUser = item.otherUser;
-  const lastMessageText = item.lastMessage?.content ?? "Say hi! 👋";
-  const hasUnread = item.unreadCount > 0;
-  const timeText = formatMessageTime(item.lastMessage?.createdAt);
-
-  return (
-    <Pressable onPress={onPress} style={[styles.conversationRow, { borderBottomColor: colors.outline }]}>
-      <MatchAvatar user={otherUser} />
-      <View style={styles.conversationInfo}>
-        <View style={styles.conversationHeader}>
-          <Text
-            style={[
-              styles.conversationName,
-              { color: colors.onBackground },
-              hasUnread && styles.conversationNameUnread,
-            ]}
-            numberOfLines={1}
-          >
-            {otherUser?.name ?? "Unknown"}
-          </Text>
-          <Text style={[styles.conversationTime, { color: colors.onSurfaceVariant }]}>
-            {timeText}
-          </Text>
-        </View>
-        <View style={styles.conversationPreviewRow}>
-          <Text
-            style={[
-              styles.conversationPreview,
-              { color: hasUnread ? colors.onBackground : colors.onSurfaceVariant },
-              hasUnread && styles.conversationPreviewUnread,
-            ]}
-            numberOfLines={1}
-          >
-            {lastMessageText}
-          </Text>
-          {hasUnread ? (
-            <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />
-          ) : null}
-        </View>
-      </View>
-    </Pressable>
-  );
-}
-
-function EmptyMatches() {
+function EmptySyncs() {
   const { colors } = useAppTheme();
   return (
     <View style={styles.emptyState}>
-      <Ionicons name="chatbubbles-outline" size={64} color={colors.onSurfaceVariant} />
-      <Text style={[styles.emptyTitle, { color: colors.onBackground }]}>No matches yet</Text>
+      <Ionicons name="swap-horizontal-outline" size={64} color={colors.onSurfaceVariant} />
+      <Text style={[styles.emptyTitle, { color: colors.onBackground }]}>No syncs yet</Text>
       <Text style={[styles.emptyDescription, { color: colors.onSurfaceVariant }]}>
         Start swiping on the Discover tab to find nomads on your route!
       </Text>
@@ -221,31 +44,28 @@ function EmptyMatches() {
 }
 
 export default function RoutesScreen() {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { currentUser } = useCurrentUser();
 
-  const matches = useQuery(
-    api.messages.getMatchesWithLastMessage,
+  const syncs = useQuery(
+    api.syncs.getSyncsForUser,
     currentUser?._id ? { userId: currentUser._id } : "skip"
-  ) as MatchWithLastMessage[] | undefined;
+  ) as SyncEntry[] | undefined;
 
-  const allMatches = useMemo(() => matches ?? [], [matches]);
-  
-  // New matches = those without any messages yet
-  const newMatches = useMemo(
-    () => allMatches.filter((m) => !m.lastMessage),
-    [allMatches]
-  );
-  
-  // Conversations = those with messages, sorted by most recent
+  const routeOverlaps = useQuery(
+    api.syncs.getNewRouteOverlaps,
+    currentUser?._id ? { userId: currentUser._id } : "skip"
+  ) as RouteOverlap[] | undefined;
+
+  const allSyncs = useMemo(() => syncs ?? [], [syncs]);
+  const overlaps = useMemo(() => (routeOverlaps ?? []).filter(Boolean) as NonNullable<RouteOverlap>[], [routeOverlaps]);
+
+  // Conversations = syncs with messages
   const conversations = useMemo(
-    () =>
-      allMatches
-        .filter((m) => m.lastMessage)
-        .sort((a, b) => (b.lastMessage?.createdAt ?? 0) - (a.lastMessage?.createdAt ?? 0)),
-    [allMatches]
+    () => allSyncs.filter((s) => s.lastMessage),
+    [allSyncs]
   );
 
   const navigateToChat = (matchId: string) => {
@@ -253,62 +73,97 @@ export default function RoutesScreen() {
     router.push(`/(app)/chat/${matchId}` as never);
   };
 
-  const renderNewMatchesSection = () => {
-    if (newMatches.length === 0) return null;
-    return (
-      <View style={styles.newMatchesSection}>
-        <Text style={[styles.sectionTitle, { color: colors.onBackground }]}>New Matches</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.newMatchesScroll}
-        >
-          {newMatches.map((item) => (
-            <NewMatchAvatar
-              key={item.match._id}
-              user={item.otherUser}
-              onPress={() => navigateToChat(item.match._id)}
-            />
-          ))}
-        </ScrollView>
-      </View>
-    );
-  };
-
-  const renderContent = () => {
-    if (allMatches.length === 0) {
-      return <EmptyMatches />;
-    }
-
-    return (
-      <>
-        {renderNewMatchesSection()}
-        {conversations.length > 0 && (
-          <View style={styles.messagesSection}>
-            <Text style={[styles.sectionTitle, { color: colors.onBackground }]}>Messages</Text>
-            {conversations.map((item) => (
-              <ConversationRow
-                key={item.match._id}
-                item={item}
-                currentUser={currentUser}
-                onPress={() => navigateToChat(item.match._id)}
-              />
-            ))}
-          </View>
-        )}
-      </>
-    );
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <GlassHeader title="Matches" />
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <View>
+          <Text style={[styles.headerTitle, { color: colors.onBackground }]}>Syncs</Text>
+        </View>
+        <View style={styles.headerActions}>
+          <Pressable
+            style={[
+              styles.headerButton,
+              {
+                backgroundColor: isDark ? "#1E1E1E" : "#FFFFFF",
+                borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
+              },
+            ]}
+          >
+            <Ionicons name="map-outline" size={20} color={colors.onSurfaceVariant} />
+          </Pressable>
+          <Pressable
+            style={[
+              styles.headerButton,
+              {
+                backgroundColor: isDark ? "#1E1E1E" : "#FFFFFF",
+                borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
+              },
+            ]}
+          >
+            <Ionicons name="search-outline" size={20} color={colors.onSurfaceVariant} />
+          </Pressable>
+        </View>
+      </View>
+
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 80 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 100 }]}
         showsVerticalScrollIndicator={false}
       >
-        {renderContent()}
+        {allSyncs.length === 0 && overlaps.length === 0 ? (
+          <EmptySyncs />
+        ) : (
+          <>
+            {/* New Route Overlaps Section */}
+            {overlaps.length > 0 && (
+              <View style={styles.overlapsSection}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={[styles.sectionLabel, { color: colors.onSurfaceVariant }]}>
+                    NEW ROUTE OVERLAPS
+                  </Text>
+                  <View style={[styles.newDot, { backgroundColor: AppColors.accentOrange }]} />
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.overlapsScroll}
+                >
+                  {overlaps.map((item) => (
+                    <RouteOverlapAvatar
+                      key={item.matchId}
+                      user={item.otherUser}
+                      overlapLocation={item.overlapLocation}
+                      onPress={() => navigateToChat(item.matchId)}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Conversations Section */}
+            {conversations.length > 0 && (
+              <View style={styles.conversationsSection}>
+                <Text style={[styles.sectionLabel, styles.conversationsLabel, { color: colors.onSurfaceVariant }]}>
+                  CONVERSATIONS
+                </Text>
+                {conversations.map((item) => (
+                  <SyncConversationRow
+                    key={item.match._id}
+                    otherUser={item.otherUser}
+                    lastMessage={item.lastMessage}
+                    unreadCount={item.unreadCount}
+                    syncStatus={item.syncStatus}
+                    syncLocation={item.syncLocation}
+                    syncDaysUntil={item.syncDaysUntil}
+                    movingTo={item.movingTo}
+                    onPress={() => navigateToChat(item.match._id)}
+                  />
+                ))}
+              </View>
+            )}
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -318,114 +173,76 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  header: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    paddingHorizontal: 24,
+    paddingBottom: 12,
+  },
+  headerTitle: {
+    fontSize: 30,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+  },
+  headerActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingBottom: 24,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    paddingHorizontal: 20,
-    marginBottom: 16,
+  overlapsSection: {
+    marginBottom: 28,
   },
-  newMatchesSection: {
-    marginBottom: 24,
-  },
-  newMatchesScroll: {
-    paddingHorizontal: 16,
-    gap: 16,
-  },
-  newMatchItem: {
-    alignItems: "center",
-    width: 72,
-  },
-  newMatchAvatar: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  newMatchBorder: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    borderWidth: 2,
-  },
-  newMatchInitials: {
-    fontSize: 22,
-    fontWeight: "700",
-  },
-  newMatchName: {
-    fontSize: 13,
-    fontWeight: "500",
-    marginTop: 8,
-    textAlign: "center",
-  },
-  messagesSection: {
-    flex: 1,
-  },
-  conversationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarInitials: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  conversationInfo: {
-    flex: 1,
-    marginLeft: 14,
-  },
-  conversationHeader: {
+  sectionHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: 24,
+    marginBottom: 16,
   },
-  conversationName: {
-    fontSize: 16,
-    fontWeight: "600",
-    flex: 1,
-  },
-  conversationNameUnread: {
+  sectionLabel: {
+    fontSize: 11,
     fontWeight: "700",
+    letterSpacing: 1.5,
   },
-  conversationTime: {
-    fontSize: 13,
-    marginLeft: 8,
+  newDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
-  conversationPreviewRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
+  overlapsScroll: {
+    paddingHorizontal: 24,
+    gap: 20,
   },
-  conversationPreview: {
-    fontSize: 14,
+  conversationsSection: {
     flex: 1,
   },
-  conversationPreviewUnread: {
-    fontWeight: "600",
-  },
-  unreadDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginLeft: 8,
+  conversationsLabel: {
+    paddingHorizontal: 24,
+    marginBottom: 16,
   },
   emptyState: {
     flex: 1,

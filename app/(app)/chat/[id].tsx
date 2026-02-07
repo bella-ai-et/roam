@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -18,7 +18,6 @@ import { format } from "date-fns";
 import { api } from "@/convex/_generated/api";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { AdaptiveGlassView } from "@/lib/glass";
 import { hapticButtonPress } from "@/lib/haptics";
 import { useAppTheme } from "@/lib/theme";
 
@@ -80,13 +79,18 @@ export default function ChatScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const matchId = typeof params.id === "string" ? (params.id as Id<"matches">) : undefined;
   const [messageText, setMessageText] = useState("");
+  const flatListRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
 
-  const handleSend = () => {
+  const sendMessage = useMutation(api.messages.sendMessage);
+  const markMessagesRead = useMutation(api.messages.markMessagesRead);
+
+  const handleSend = useCallback(() => {
     if (!messageText.trim() || !matchId || !currentUser?._id) return;
     sendMessage({ matchId, senderId: currentUser._id, content: messageText.trim() });
     setMessageText("");
     hapticButtonPress();
-  };
+  }, [messageText, matchId, currentUser?._id, sendMessage]);
 
   const messages = useQuery(api.messages.getMessages, matchId ? { matchId } : "skip");
   const matchEntries = useQuery(
@@ -100,9 +104,6 @@ export default function ChatScreen() {
   );
 
   const otherUser = matchEntry?.otherUser ?? null;
-
-  const markMessagesRead = useMutation(api.messages.markMessagesRead);
-  const sendMessage = useMutation(api.messages.sendMessage);
 
   useEffect(() => {
     if (matchId && currentUser?._id) {
@@ -118,103 +119,112 @@ export default function ChatScreen() {
   const canSend = messageText.trim().length > 0;
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={0}
-    >
-      <AdaptiveGlassView style={[styles.header, { paddingTop: insets.top + 12, borderBottomColor: colors.outline }]}>
-        <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerBack}>
-            <Ionicons name="chevron-back" size={24} color={colors.onBackground} />
-          </Pressable>
-          <View style={styles.headerCenter}>
-            <HeaderAvatar user={otherUser} />
-            <Text style={[styles.headerName, { color: colors.onBackground }]} numberOfLines={1}>
-              {otherUser?.name ?? "Chat"}
-            </Text>
-          </View>
-          <View style={styles.headerSpacer} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: colors.outline }]}>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerBack}>
+          <Ionicons name="chevron-back" size={24} color={colors.onBackground} />
+        </Pressable>
+        <View style={styles.headerCenter}>
+          <HeaderAvatar user={otherUser} />
+          <Text style={[styles.headerName, { color: colors.onBackground }]} numberOfLines={1}>
+            {otherUser?.name ?? "Chat"}
+          </Text>
         </View>
-      </AdaptiveGlassView>
+        <View style={styles.headerSpacer} />
+      </View>
 
-      <FlatList
-        data={messageData}
-        keyExtractor={(item) => item._id}
-        inverted
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.listContent}
-        renderItem={({ item, index }) => {
-          const isOwn = item.senderId === currentUser?._id;
-          const previousMessage = messageData[index + 1];
-          const nextMessage = messageData[index - 1];
-          const isSameAsPrevious = previousMessage?.senderId === item.senderId;
-          const showTimestamp = !nextMessage || nextMessage.senderId !== item.senderId;
-          return (
-            <View
-              style={[
-                styles.messageRow,
-                {
-                  alignItems: isOwn ? "flex-end" : "flex-start",
-                  marginTop: isSameAsPrevious ? 4 : 8,
-                },
-              ]}
-            >
+      {/* Messages + Input wrapped in KeyboardAvoidingView */}
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoid}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      >
+        <FlatList
+          ref={flatListRef}
+          data={messageData}
+          keyExtractor={(item) => item._id}
+          inverted
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          contentContainerStyle={styles.listContent}
+          automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+          renderItem={({ item, index }) => {
+            const isOwn = item.senderId === currentUser?._id;
+            const previousMessage = messageData[index + 1];
+            const nextMessage = messageData[index - 1];
+            const isSameAsPrevious = previousMessage?.senderId === item.senderId;
+            const showTimestamp = !nextMessage || nextMessage.senderId !== item.senderId;
+            return (
               <View
                 style={[
-                  styles.bubble,
-                  isOwn
-                    ? { backgroundColor: colors.primary, borderBottomRightRadius: 4 }
-                    : { backgroundColor: colors.surfaceVariant, borderBottomLeftRadius: 4 },
+                  styles.messageRow,
+                  {
+                    alignItems: isOwn ? "flex-end" : "flex-start",
+                    marginTop: isSameAsPrevious ? 4 : 8,
+                  },
                 ]}
               >
-                <Text style={[styles.messageText, { color: isOwn ? "white" : colors.onBackground }]}>
-                  {item.content}
-                </Text>
-              </View>
-              {showTimestamp ? (
-                <Text
+                <View
                   style={[
-                    styles.timestamp,
-                    { color: colors.onSurfaceVariant, alignSelf: isOwn ? "flex-end" : "flex-start" },
+                    styles.bubble,
+                    isOwn
+                      ? { backgroundColor: colors.primary, borderBottomRightRadius: 4 }
+                      : { backgroundColor: colors.surfaceVariant, borderBottomLeftRadius: 4 },
                   ]}
                 >
-                  {format(new Date(item.createdAt), "h:mm a")}
-                </Text>
-              ) : null}
-            </View>
-          );
-        }}
-      />
-
-      <AdaptiveGlassView
-        style={[
-          styles.inputBar,
-          { paddingBottom: Math.max(insets.bottom, 12), borderTopColor: colors.outline },
-        ]}
-      >
-        <TextInput
-          value={messageText}
-          onChangeText={setMessageText}
-          placeholder="Message..."
-          placeholderTextColor={colors.onSurfaceVariant}
-          style={[styles.input, { color: colors.onBackground, backgroundColor: colors.surfaceVariant }]}
-          multiline
-          maxLength={800}
-          returnKeyType="send"
-          blurOnSubmit={false}
-          onSubmitEditing={handleSend}
+                  <Text style={[styles.messageText, { color: isOwn ? "white" : colors.onBackground }]}>
+                    {item.content}
+                  </Text>
+                </View>
+                {showTimestamp ? (
+                  <Text
+                    style={[
+                      styles.timestamp,
+                      { color: colors.onSurfaceVariant, alignSelf: isOwn ? "flex-end" : "flex-start" },
+                    ]}
+                  >
+                    {format(new Date(item.createdAt), "h:mm a")}
+                  </Text>
+                ) : null}
+              </View>
+            );
+          }}
         />
-        <Pressable
-          onPress={handleSend}
-          disabled={!canSend}
-          hitSlop={8}
-          style={[styles.sendButton, { backgroundColor: canSend ? colors.primary : colors.surfaceVariant }]}
+
+        {/* Input bar */}
+        <View
+          style={[
+            styles.inputBar,
+            {
+              borderTopColor: colors.outline,
+              backgroundColor: colors.background,
+            },
+          ]}
         >
-          <Ionicons name="send" size={20} color={canSend ? colors.onPrimary : colors.onSurfaceVariant} />
-        </Pressable>
-      </AdaptiveGlassView>
-    </KeyboardAvoidingView>
+          <TextInput
+            ref={inputRef}
+            value={messageText}
+            onChangeText={setMessageText}
+            placeholder="Message..."
+            placeholderTextColor={colors.onSurfaceVariant}
+            style={[styles.input, { color: colors.onBackground, backgroundColor: colors.surfaceVariant }]}
+            multiline
+            maxLength={800}
+            blurOnSubmit={false}
+            onSubmitEditing={handleSend}
+          />
+          <Pressable
+            onPress={handleSend}
+            disabled={!canSend}
+            hitSlop={8}
+            style={[styles.sendButton, { backgroundColor: canSend ? colors.primary : colors.surfaceVariant }]}
+          >
+            <Ionicons name="send" size={20} color={canSend ? colors.onPrimary : colors.onSurfaceVariant} />
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -223,13 +233,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  headerRow: {
     flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerBack: {
     width: 44,
@@ -249,19 +257,22 @@ const styles = StyleSheet.create({
     columnGap: 10,
   },
   headerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
   headerInitials: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
   },
   headerName: {
     fontSize: 17,
     fontWeight: "700",
+  },
+  keyboardAvoid: {
+    flex: 1,
   },
   listContent: {
     paddingHorizontal: 16,
@@ -278,6 +289,7 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 15,
+    lineHeight: 20,
   },
   timestamp: {
     fontSize: 11,
@@ -287,7 +299,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: 12,
-    paddingTop: 12,
+    paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
     gap: 10,
   },

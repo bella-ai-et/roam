@@ -105,6 +105,26 @@ export const BUILD_CATEGORIES = [
 ] as const;
 export type BuildCategory = (typeof BUILD_CATEGORIES)[number]["value"];
 
+/** Vehicle icon mapping for Syncs screen – maps vanType to Ionicons */
+export const VEHICLE_ICONS: Record<string, { icon: string; label: string }> = {
+  sprinter:  { icon: "bus-outline",     label: "Van" },
+  promaster: { icon: "bus-outline",     label: "Van" },
+  transit:   { icon: "bus-outline",     label: "Van" },
+  diy:       { icon: "bus-outline",     label: "Van" },
+  rv:        { icon: "bus-outline",     label: "RV" },
+  truck:     { icon: "car-outline",     label: "Truck" },
+  skoolie:   { icon: "bus-outline",     label: "Bus" },
+  other:     { icon: "car-outline",     label: "Vehicle" },
+};
+
+/** Sync status types for route overlap badges */
+export const SYNC_STATUS_CONFIG: Record<string, { bgColor: string; textColor: string; icon: string }> = {
+  crossing:  { bgColor: "rgba(232,155,116,0.1)", textColor: "#E89B74", icon: "swap-horizontal" },
+  same_stop: { bgColor: "rgba(92,157,155,0.1)",  textColor: "#5C9D9B", icon: "location" },
+  syncing:   { bgColor: "rgba(232,155,116,0.1)", textColor: "#E89B74", icon: "swap-horizontal" },
+  departed:  { bgColor: "rgba(148,163,184,0.1)", textColor: "#94A3B8", icon: "log-out-outline" },
+};
+
 export const CATEGORY_COLORS: Record<string, { bg: string; darkBg: string; text: string; darkText: string }> = {
   electrical: { bg: "#FFFBEB", darkBg: "rgba(245,158,11,0.12)", text: "#D97706", darkText: "#FBBF24" },
   plumbing:   { bg: "#EFF6FF", darkBg: "rgba(59,130,246,0.12)", text: "#2563EB", darkText: "#60A5FA" },

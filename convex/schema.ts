@@ -43,6 +43,10 @@ export default defineSchema({
     user1Id: v.id("users"), 
     user2Id: v.id("users"), 
     matchedAt: v.number(), 
+    syncStatus: v.optional(v.string()),
+    syncLocation: v.optional(v.string()),
+    syncDaysUntil: v.optional(v.number()),
+    lastSyncUpdate: v.optional(v.number()),
   })
     .index("by_user1", ["user1Id"])
     .index("by_user2", ["user2Id"]),

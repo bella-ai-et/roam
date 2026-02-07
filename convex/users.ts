@@ -82,6 +82,69 @@ export const updateRoute = mutation({
     })), 
   }, 
   handler: async (ctx, { userId, route }) => { 
-    await ctx.db.patch(userId, { currentRoute: route }); 
+    await ctx.db.patch(userId, { currentRoute: route });
+
+    // Recalculate sync statuses for all matches involving this user
+    const asUser1 = await ctx.db.query("matches").withIndex("by_user1", (q) => q.eq("user1Id", userId)).collect();
+    const asUser2 = await ctx.db.query("matches").withIndex("by_user2", (q) => q.eq("user2Id", userId)).collect();
+    const allMatches = [...asUser1, ...asUser2];
+
+    for (const match of allMatches) {
+      const otherId = match.user1Id === userId ? match.user2Id : match.user1Id;
+      const otherUser = await ctx.db.get(otherId);
+      const otherRoute = otherUser?.currentRoute;
+
+      if (!otherRoute?.length || !route.length) continue;
+
+      // Inline lightweight sync calc to avoid cross-file import issues
+      const now = Date.now();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayMs = today.getTime();
+      let syncStatus = "none";
+      let syncLocation = "";
+      let syncDaysUntil: number | undefined = undefined;
+
+      for (const myStop of route) {
+        for (const theirStop of otherRoute) {
+          const R = 6371;
+          const toRad = (deg: number) => (deg * Math.PI) / 180;
+          const dLat = toRad(theirStop.location.latitude - myStop.location.latitude);
+          const dLon = toRad(theirStop.location.longitude - myStop.location.longitude);
+          const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(myStop.location.latitude)) * Math.cos(toRad(theirStop.location.latitude)) * Math.sin(dLon / 2) ** 2;
+          const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          if (dist > 150) continue;
+
+          const myArr = new Date(myStop.arrivalDate).getTime();
+          const myDep = new Date(myStop.departureDate).getTime();
+          const thArr = new Date(theirStop.arrivalDate).getTime();
+          const thDep = new Date(theirStop.departureDate).getTime();
+          if (myArr > thDep || thArr > myDep) continue;
+
+          const overlapStart = Math.max(myArr, thArr);
+          const overlapEnd = Math.min(myDep, thDep);
+          const loc = myStop.location.name || theirStop.location.name || "Unknown";
+
+          if (overlapStart <= todayMs && overlapEnd >= todayMs) {
+            syncStatus = "same_stop"; syncLocation = loc; break;
+          } else if (overlapStart <= now && overlapEnd > now) {
+            if (syncStatus !== "same_stop") { syncStatus = "syncing"; syncLocation = loc; }
+          } else if (overlapStart > now) {
+            if (syncStatus === "none") {
+              syncStatus = "crossing"; syncLocation = loc;
+              syncDaysUntil = Math.ceil((overlapStart - now) / (1000 * 60 * 60 * 24));
+            }
+          }
+        }
+        if (syncStatus === "same_stop") break;
+      }
+
+      await ctx.db.patch(match._id, {
+        syncStatus,
+        syncLocation,
+        syncDaysUntil,
+        lastSyncUpdate: Date.now(),
+      });
+    }
   }, 
 });
