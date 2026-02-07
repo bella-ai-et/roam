@@ -33,6 +33,7 @@ export default function ProfileScreen() {
     currentUser?.dateOfBirth ? new Date(currentUser.dateOfBirth) : undefined
   );
   const [gender, setGender] = useState(currentUser?.gender || "");
+  const [lifestyleLabel, setLifestyleLabel] = useState(currentUser?.lifestyleLabel || "");
   const [photos, setPhotos] = useState<string[]>(currentUser?.photos || []);
   const [localPhotos, setLocalPhotos] = useState<{ id: string; uri: string }[]>([]);
 
@@ -41,6 +42,7 @@ export default function ProfileScreen() {
     setName(currentUser.name ?? "");
     setDob(currentUser.dateOfBirth ? new Date(currentUser.dateOfBirth) : undefined);
     setGender(currentUser.gender ?? "");
+    setLifestyleLabel(currentUser.lifestyleLabel ?? "");
     setPhotos(currentUser.photos ?? []);
   }, [currentUser]);
 
@@ -84,6 +86,7 @@ export default function ProfileScreen() {
           name: name.trim(),
           dateOfBirth: dob.getTime(),
           gender,
+          lifestyleLabel: lifestyleLabel.trim() || undefined,
           photos,
         });
       } else {
@@ -92,6 +95,7 @@ export default function ProfileScreen() {
           name: name.trim(),
           dateOfBirth: dob.getTime(),
           gender,
+          lifestyleLabel: lifestyleLabel.trim() || undefined,
           photos,
           interests: [],
           lookingFor: [],
@@ -102,7 +106,7 @@ export default function ProfileScreen() {
           currentRoute: undefined,
         });
       }
-      router.push("/(app)/onboarding/verification");
+      router.push("/(app)/onboarding/travel-styles" as never);
     } catch {
       Alert.alert("Error", "Failed to save profile.");
     } finally {
@@ -135,7 +139,7 @@ export default function ProfileScreen() {
           { paddingTop: insets.top + 60, paddingBottom: 100 }
         ]}
       >
-        <ProgressBar current={1} total={8} />
+        <ProgressBar current={1} total={9} />
 
         <View style={styles.section}>
           <GlassInput
@@ -175,6 +179,15 @@ export default function ProfileScreen() {
             emoji="⚧"
             selected={gender === "non_binary"}
             onPress={() => setGender("non_binary")}
+          />
+        </View>
+
+        <View style={styles.section}>
+          <GlassInput
+            label="Lifestyle label"
+            placeholder="Vanlife • Remote Developer"
+            value={lifestyleLabel}
+            onChangeText={setLifestyleLabel}
           />
         </View>
 

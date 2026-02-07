@@ -22,8 +22,11 @@ export default function TabLayout() {
           <NativeTabs.Trigger.Icon sf={{ default: "heart", selected: "heart.fill" }} md="favorite" />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="routes">
-          <NativeTabs.Trigger.Label>Routes</NativeTabs.Trigger.Label>
-          <NativeTabs.Trigger.Icon sf={{ default: "map", selected: "map.fill" }} md="map" />
+          <NativeTabs.Trigger.Label>Syncs</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon
+            sf={{ default: "bubble.left", selected: "bubble.left.fill" }}
+            md="chat_bubble"
+          />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="community">
           <NativeTabs.Trigger.Label>Community</NativeTabs.Trigger.Label>
@@ -76,9 +79,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="routes"
         options={{
-          title: "Routes",
+          title: "Syncs",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "map" : "map-outline"} size={26} color={color} />
+            <Ionicons name={focused ? "chatbubble" : "chatbubble-outline"} size={26} color={color} />
           ),
         }}
       />

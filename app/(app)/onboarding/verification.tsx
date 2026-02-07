@@ -72,7 +72,7 @@ export default function VerificationScreen() {
           { paddingTop: insets.top + 60, paddingBottom: 100 }
         ]}
       >
-        <ProgressBar current={2} total={8} />
+        <ProgressBar current={3} total={9} />
 
         <View style={styles.badgeRow}>
           <Ionicons name="shield-checkmark-outline" size={20} color="#4CD964" />

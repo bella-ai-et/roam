@@ -76,6 +76,13 @@ export default function RouteScreen() {
   const [routeIntent, setRouteIntent] = useState<RouteIntent | "">("");
   const [destinationType, setDestinationType] = useState<DestinationType | "">("");
   const [extraStops, setExtraStops] = useState<RouteStop[]>([]);
+  const [showDetails, setShowDetails] = useState(false);
+  const [showOriginSection, setShowOriginSection] = useState(false);
+
+  useEffect(() => {
+    if (!routeIntent) setRouteIntent("planned");
+    if (!destinationType) setDestinationType("adventure");
+  }, [destinationType, routeIntent]);
 
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -119,6 +126,7 @@ export default function RouteScreen() {
       });
       setOriginArrival(parseRouteDate(originStop.arrivalDate));
       setOriginDeparture(parseRouteDate(originStop.departureDate));
+      setShowOriginSection(true);
     }
 
     if (destinationStop) {
@@ -309,11 +317,11 @@ export default function RouteScreen() {
     }
 
     if (!routeIntent) {
-      issues.push("Choose whether this route is planned or a preference.");
+      // Defaults are applied for better UX.
     }
 
     if (!destinationType) {
-      issues.push("Tell us what this destination represents.");
+      // Defaults are applied for better UX.
     }
 
     if ((originArrival || originDeparture) && !trimmedOrigin) {
@@ -450,16 +458,33 @@ export default function RouteScreen() {
           { paddingTop: insets.top + 60, paddingBottom: 120 },
         ]}
       >
-        <ProgressBar current={6} total={8} />
+        <ProgressBar current={7} total={9} />
 
         <Text style={[styles.subtitle, { color: colors.onSurface }]}>
-          Tell us the route you actually want
+          Where are you heading?
         </Text>
-
         <Text style={[styles.description, { color: colors.onSurfaceVariant }]}>
           We match people based on intent, not just where you happen to be standing.
         </Text>
 
+        <Pressable
+          style={[styles.inlineButton, { borderColor: colors.outline }]}
+          onPress={() => {
+            setShowDetails((prev) => !prev);
+            hapticSelection();
+          }}
+        >
+          <Ionicons
+            name={showDetails ? "options" : "options-outline"}
+            size={18}
+            color={colors.onSurfaceVariant}
+          />
+          <Text style={[styles.inlineButtonText, { color: colors.onSurfaceVariant }]}>
+            {showDetails ? "Hide route details" : "Customize route details"}
+          </Text>
+        </Pressable>
+
+      {showDetails && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Route intent</Text>
           {routeIntentOptions.map((option) => (
@@ -473,7 +498,9 @@ export default function RouteScreen() {
             />
           ))}
         </View>
+      )}
 
+      {showDetails && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
             What does this destination represent?
@@ -489,9 +516,36 @@ export default function RouteScreen() {
             />
           ))}
         </View>
+      )}
 
+      {!showOriginSection ? (
+        <Pressable
+          style={[styles.inlineButton, { borderColor: colors.primary }]}
+          onPress={() => {
+            setShowOriginSection(true);
+            hapticSelection();
+          }}
+        >
+          <Ionicons name="navigate-outline" size={18} color={colors.primary} />
+          <Text style={[styles.inlineButtonText, { color: colors.primary }]}>Add starting point (optional)</Text>
+        </Pressable>
+      ) : (
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Starting location</Text>
+          <View style={styles.originHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: colors.onSurface, marginBottom: 0 }]}>Starting location</Text>
+            <Pressable
+              onPress={() => {
+                setShowOriginSection(false);
+                setOriginName("");
+                setOriginCoords(null);
+                setOriginArrival(undefined);
+                setOriginDeparture(undefined);
+              }}
+              hitSlop={10}
+            >
+              <Ionicons name="close" size={18} color={colors.onSurfaceVariant} />
+            </Pressable>
+          </View>
           <Text style={[styles.sectionDescription, { color: colors.onSurfaceVariant }]}>
             Optional, but helpful when you know where you will be departing from.
           </Text>
@@ -534,10 +588,12 @@ export default function RouteScreen() {
             </View>
           </View>
         </View>
+      )}
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Destination</Text>
-          <Text style={[styles.sectionDescription, { color: colors.onSurfaceVariant }]}>
+          <Text style={[styles.sectionDescription, { color: colors.onSurfaceVariant }]}
+          >
             This should be the place you actually want to go.
           </Text>
           <GlassInput
@@ -567,6 +623,47 @@ export default function RouteScreen() {
                 minimumDate={destinationArrival}
               />
             </View>
+          </View>
+
+          <View style={styles.presetRow}>
+            <Pressable
+              style={[styles.presetButton, { borderColor: colors.primary }]}
+              onPress={() => {
+                const start = new Date();
+                const end = new Date(start);
+                end.setDate(start.getDate() + 4);
+                setDestinationArrival(start);
+                setDestinationDeparture(end);
+              }}
+            >
+              <Text style={[styles.presetText, { color: colors.primary }]}>This week</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.presetButton, { borderColor: colors.primary }]}
+              onPress={() => {
+                const start = new Date();
+                start.setDate(start.getDate() + 7);
+                const end = new Date(start);
+                end.setDate(start.getDate() + 4);
+                setDestinationArrival(start);
+                setDestinationDeparture(end);
+              }}
+            >
+              <Text style={[styles.presetText, { color: colors.primary }]}>Next week</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.presetButton, { borderColor: colors.primary }]}
+              onPress={() => {
+                const start = new Date();
+                start.setDate(start.getDate() + 30);
+                const end = new Date(start);
+                end.setDate(start.getDate() + 7);
+                setDestinationArrival(start);
+                setDestinationDeparture(end);
+              }}
+            >
+              <Text style={[styles.presetText, { color: colors.primary }]}>Next month</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -685,28 +782,29 @@ export default function RouteScreen() {
                       idx <= index && candidate.role !== "origin" && candidate.role !== "destination"
                   ).length || 1;
                 return (
-                <View key={`${stop.location.name}-${index}`} style={styles.timelineItem}>
-                  <View style={styles.timelineLeft}>
-                    <View style={[styles.dot, { backgroundColor: colors.primary }]} />
-                    {index < previewStops.length - 1 && (
-                      <View style={[styles.line, { backgroundColor: "rgba(255,255,255,0.1)" }]} />
-                    )}
-                  </View>
-                  <AdaptiveGlassView style={styles.stopCard}>
-                    <View style={styles.stopHeader}>
-                      <Text style={[styles.stopLabel, { color: colors.onSurfaceVariant }]}>
-                        {renderStopLabel(stop, stopNumber)}
-                      </Text>
+                  <View key={`${stop.location.name}-${index}`} style={styles.timelineItem}>
+                    <View style={styles.timelineLeft}>
+                      <View style={[styles.dot, { backgroundColor: colors.primary }]} />
+                      {index < previewStops.length - 1 && (
+                        <View style={[styles.line, { backgroundColor: "rgba(255,255,255,0.1)" }]} />
+                      )}
                     </View>
-                    <Text style={[styles.locationName, { color: colors.onSurface }]}>
-                      {stop.location.name}
-                    </Text>
-                    <Text style={[styles.dates, { color: colors.onSurfaceVariant }]}>
-                      {stop.arrivalDate} - {stop.departureDate}
-                    </Text>
-                  </AdaptiveGlassView>
-                </View>
-              )})}
+                    <AdaptiveGlassView style={styles.stopCard}>
+                      <View style={styles.stopHeader}>
+                        <Text style={[styles.stopLabel, { color: colors.onSurfaceVariant }]}>
+                          {renderStopLabel(stop, stopNumber)}
+                        </Text>
+                      </View>
+                      <Text style={[styles.locationName, { color: colors.onSurface }]}>
+                        {stop.location.name}
+                      </Text>
+                      <Text style={[styles.dates, { color: colors.onSurfaceVariant }]}>
+                        {stop.arrivalDate} - {stop.departureDate}
+                      </Text>
+                    </AdaptiveGlassView>
+                  </View>
+                );
+              })}
             </View>
           ) : (
             <View style={[styles.emptyState, { borderColor: "rgba(255,255,255,0.1)" }]}>
@@ -752,6 +850,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 10,
   },
+  originHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
   sectionDescription: {
     fontSize: 13,
     marginBottom: 12,
@@ -773,6 +877,22 @@ const styles = StyleSheet.create({
   },
   dateRow: {
     flexDirection: "row",
+  },
+  presetRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 12,
+  },
+  presetButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  presetText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
   stopList: {
     gap: 12,

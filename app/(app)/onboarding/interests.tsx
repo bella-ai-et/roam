@@ -87,7 +87,7 @@ export default function InterestsScreen() {
           { paddingTop: insets.top + 60, paddingBottom: 100 }
         ]}
       >
-        <ProgressBar current={4} total={8} />
+        <ProgressBar current={5} total={9} />
 
         <View style={styles.headerRow}>
           <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>

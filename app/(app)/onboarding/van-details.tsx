@@ -81,7 +81,7 @@ export default function VanDetailsScreen() {
           { paddingTop: insets.top + 60, paddingBottom: 100 }
         ]}
       >
-        <ProgressBar current={5} total={8} />
+        <ProgressBar current={6} total={9} />
 
         {/* Van Type Section */}
         <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>

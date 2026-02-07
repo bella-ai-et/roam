@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Text,
   View,
+  Platform,
   StyleSheet,
   Pressable,
   Modal,
@@ -29,8 +30,8 @@ import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { api } from "@/convex/_generated/api";
 import { Doc, Id } from "@/convex/_generated/dataModel";
-import { DiscoveryCard } from "@/components/discovery";
-import { GlassButton, GlassChip, GlassHeader } from "@/components/glass";
+import { ActionButtons, buildJourneyStops, DiscoveryCard, JourneyStopsTimeline } from "@/components/discovery";
+import { GlassButton } from "@/components/glass";
 import { AdaptiveGlassView } from "@/lib/glass";
 import { AppColors, useAppTheme } from "@/lib/theme";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -41,6 +42,7 @@ import {
   SCREEN_HEIGHT,
   SCREEN_WIDTH,
   SWIPE_THRESHOLD,
+  TRAVEL_STYLES,
   VAN_TYPES,
 } from "@/lib/constants";
 import { hapticButtonPress } from "@/lib/haptics";
@@ -320,7 +322,7 @@ function MatchCelebration({
 }
 
 export default function DiscoverScreen() {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { currentUser } = useCurrentUser();
@@ -460,6 +462,8 @@ export default function DiscoverScreen() {
     }
   };
 
+  const tabBarHeight = (Platform.OS === "android" ? 64 : 56) + insets.bottom;
+
   const panGesture = Gesture.Pan()
     .onStart(() => {
       // Ensure we start from center position
@@ -593,10 +597,10 @@ export default function DiscoverScreen() {
                   >
                     <DiscoveryCard match={match} onPress={() => setProfileModal(match)} />
                     <Animated.View style={[styles.overlayBadge, styles.likeBadge, likeOverlayStyle]}>
-                      <Text style={[styles.overlayText, { color: colors.like }]}>LIKE</Text>
+                      <Text style={[styles.overlayText, { color: colors.primary }]}>LIKE</Text>
                     </Animated.View>
                     <Animated.View style={[styles.overlayBadge, styles.nopeBadge, nopeOverlayStyle]}>
-                      <Text style={[styles.overlayText, { color: colors.reject }]}>NOPE</Text>
+                      <Text style={[styles.overlayText, { color: colors.accentOrange }]}>NOPE</Text>
                     </Animated.View>
                   </Animated.View>
                 </GestureDetector>
@@ -626,6 +630,13 @@ export default function DiscoverScreen() {
     const user = profileModal.user;
     const age = user.dateOfBirth ? differenceInYears(new Date(), new Date(user.dateOfBirth)) : undefined;
     const vanType = VAN_TYPES.find((type) => type.value === user.vanType);
+    const journeyStops = buildJourneyStops({ user: { currentRoute: user.currentRoute }, overlaps: profileModal.overlaps });
+    const travelStyleLabels = (user.travelStyles ?? []).map(
+      (v) => TRAVEL_STYLES.find((t) => t.value === v)?.label ?? v
+    );
+    const travelStyleEmojis = (user.travelStyles ?? []).map(
+      (v) => TRAVEL_STYLES.find((t) => t.value === v)?.emoji ?? "🚐"
+    );
 
     return (
       <Modal visible transparent animationType="slide">
@@ -640,11 +651,18 @@ export default function DiscoverScreen() {
                 </Text>
                 {user.vanVerified && (
                   <View style={styles.verifiedRow}>
-                    <Ionicons name="shield-checkmark" size={14} color={colors.like} />
-                    <Text style={[styles.verifiedText, { color: colors.like }]}>Verified</Text>
+                    <Ionicons name="shield-checkmark" size={14} color={colors.primary} />
+                    <Text style={[styles.verifiedText, { color: colors.primary }]}>Verified</Text>
                   </View>
                 )}
               </View>
+
+              {journeyStops.length > 0 && (
+                <View style={styles.profileSection}>
+                  <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Journey Stops</Text>
+                  <JourneyStopsTimeline stops={journeyStops} />
+                </View>
+              )}
 
               <View style={styles.profileSection}>
                 <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Route Overlaps</Text>
@@ -667,29 +685,55 @@ export default function DiscoverScreen() {
 
               <View style={styles.profileSection}>
                 <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Bio</Text>
-                <Text style={[styles.profileBio, { color: colors.onSurfaceVariant }]}>
-                  {user.bio ?? "No bio yet."}
-                </Text>
+                <View style={[styles.bioQuoteBox, { backgroundColor: colors.surfaceVariant }]}>
+                  <Text style={[styles.bioQuoteText, { color: colors.onSurfaceVariant }]}>
+                    {user.bio ? `"${user.bio}"` : "No bio yet."}
+                  </Text>
+                </View>
               </View>
 
               <View style={styles.profileSection}>
                 <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Interests</Text>
-                <View style={styles.chipRow}>
+                <View style={styles.interestRow}>
                   {(user.interests ?? []).map((interest) => {
-                    const match = INTERESTS.find((item) => item.name === interest);
+                    const meta = INTERESTS.find((item) => item.name === interest);
                     return (
-                      <GlassChip
+                      <View
                         key={interest}
-                        label={interest}
-                        emoji={match?.emoji}
-                        selected
-                        onPress={() => {}}
-                        disabled
-                      />
+                        style={[
+                          styles.interestPill,
+                          {
+                            backgroundColor: isDark
+                              ? "rgba(210,124,92,0.25)"
+                              : "rgba(210,124,92,0.12)",
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.interestPillText, { color: colors.primary }]}>
+                          {meta?.emoji ? `${meta.emoji} ` : ""}{interest}
+                        </Text>
+                      </View>
                     );
                   })}
                 </View>
               </View>
+
+              {travelStyleLabels.length > 0 && (
+                <View style={styles.profileSection}>
+                  <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Travel Style</Text>
+                  <View style={styles.travelStylesRow}>
+                    {travelStyleLabels.map((label, i) => (
+                      <View
+                        key={`${label}-${i}`}
+                        style={[styles.travelStylePill, { backgroundColor: colors.surfaceVariant }]}
+                      >
+                        <Text style={styles.travelStyleEmoji}>{travelStyleEmojis[i] ?? "🚐"}</Text>
+                        <Text style={[styles.travelStyleText, { color: colors.onSurfaceVariant }]}>{label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
 
               <View style={styles.profileSection}>
                 <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Van</Text>
@@ -734,26 +778,20 @@ export default function DiscoverScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <GlassHeader title="Discover" />
-      <View style={[styles.content, { paddingTop: insets.top + 72, paddingBottom: insets.bottom + 16 }]}>
-        {renderStack()}
-        {activeMatch && (
-          <View style={styles.actionsRow}>
-            <CircleActionButton
-              label="✕"
-              color={colors.reject}
-              size={56}
-              onPress={() => triggerSwipe("reject")}
-            />
-            <CircleActionButton
-              label="♡"
-              color={colors.like}
-              size={60}
-              onPress={() => triggerSwipe("like")}
-            />
-          </View>
-        )}
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}
+      >
+        <Text style={[styles.headerTitle, { color: colors.onBackground }]}>Discover</Text>
       </View>
+      <View style={[styles.content, { paddingBottom: insets.bottom + 16 }]}>
+        {renderStack()}
+      </View>
+      {activeMatch && (
+        <ActionButtons
+          onReject={() => triggerSwipe("reject")}
+          onLike={() => triggerSwipe("like")}
+          bottomOffset={tabBarHeight + 24}
+        />
+      )}
       {renderProfileModal()}
       <MatchCelebration
         visible={Boolean(matchState)}
@@ -768,9 +806,18 @@ export default function DiscoverScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  header: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+  },
   content: {
     flex: 1,
     paddingHorizontal: 16,
+    paddingTop: 12,
   },
   cardStack: {
     flex: 1,
@@ -791,23 +838,17 @@ const styles = StyleSheet.create({
   },
   likeBadge: {
     left: 20,
-    borderColor: "#4CD964",
+    borderColor: AppColors.primary,
     transform: [{ rotate: "-15deg" }],
   },
   nopeBadge: {
     right: 20,
-    borderColor: "#FF3B30",
+    borderColor: AppColors.accentOrange,
     transform: [{ rotate: "15deg" }],
   },
   overlayText: {
     fontSize: 20,
     fontWeight: "800",
-  },
-  actionsRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 24,
-    marginTop: 20,
   },
   actionButton: {
     flex: 1,
@@ -915,16 +956,53 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   },
-  profileBio: {
+  bioQuoteBox: {
+    padding: 16,
+    borderRadius: 16,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
+  },
+  bioQuoteText: {
     fontSize: 15,
     lineHeight: 22,
-    marginTop: 8,
+    fontStyle: "italic",
   },
-  chipRow: {
+  interestRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
     marginTop: 8,
+  },
+  interestPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  interestPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  travelStylesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 8,
+  },
+  travelStylePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  travelStyleEmoji: {
+    fontSize: 13,
+  },
+  travelStyleText: {
+    fontSize: 12,
+    fontWeight: "500",
   },
   vanCard: {
     borderRadius: 18,
