@@ -34,6 +34,7 @@ export default function AppLayout() {
           options={{ headerShown: true, title: "Edit Profile", presentation: "modal" }}
         />
       )}
+      {hasProfile && <Stack.Screen name="settings" options={{ headerShown: false }} />}
       {hasProfile && <Stack.Screen name="chat/[id]" options={{ headerShown: true, title: "Chat" }} />}
       {hasProfile && <Stack.Screen name="community/[id]" options={{ headerShown: false }} />}
       {hasProfile && <Stack.Screen name="community/create" options={{ headerShown: false }} />}

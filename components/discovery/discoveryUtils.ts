@@ -5,6 +5,8 @@ type RouteStop = {
   location: { latitude: number; longitude: number; name: string };
   arrivalDate: string;
   departureDate: string;
+  status?: string;
+  notes?: string;
 };
 
 type Overlap = {
@@ -43,9 +45,13 @@ export function buildJourneyStops(match: RouteMatchForStops): JourneyStopItem[] 
         stopNameLower.includes(overlapLocationLower));
 
     let type: JourneyStopItem["type"] = "stop";
-    if (isFirst) type = "start";
-    else if (isLast) type = "destination";
+    // Use explicit status field if available, otherwise infer from position
+    const explicitStatus = (stop as any).status as string | undefined;
+    if (explicitStatus === "current") type = "start";
+    else if (explicitStatus === "destination") type = "destination";
     else if (isOverlap) type = "overlap";
+    else if (isFirst) type = "start";
+    else if (isLast) type = "destination";
 
     let subLabel: string;
     if (isFirst) subLabel = "Origin";
@@ -69,7 +75,7 @@ export function buildJourneyStops(match: RouteMatchForStops): JourneyStopItem[] 
       type,
       locationName: stop.location.name || "Unknown",
       dateLabel,
-      subLabel,
+      subLabel: stop.notes || subLabel,
     };
   });
 }

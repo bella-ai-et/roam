@@ -21,6 +21,8 @@ export default function EditAboutScreen() {
   const [dob, setDob] = useState<Date | undefined>();
   const [gender, setGender] = useState("");
   const [bio, setBio] = useState("");
+  const [vanModel, setVanModel] = useState("");
+  const [nomadSinceYear, setNomadSinceYear] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -29,6 +31,8 @@ export default function EditAboutScreen() {
     setDob(currentUser.dateOfBirth ? new Date(currentUser.dateOfBirth) : undefined);
     setGender(currentUser.gender ?? "");
     setBio(currentUser.bio ?? "");
+    setVanModel((currentUser as any).vanModel ?? "");
+    setNomadSinceYear((currentUser as any).nomadSinceYear ? String((currentUser as any).nomadSinceYear) : "");
   }, [currentUser]);
 
   const handleSave = async () => {
@@ -40,12 +44,15 @@ export default function EditAboutScreen() {
 
     setSaving(true);
     try {
+      const parsedYear = nomadSinceYear.trim() ? parseInt(nomadSinceYear.trim(), 10) : undefined;
       await updateProfile({
         userId: currentUser._id,
         name: name.trim(),
         dateOfBirth: dob ? dob.getTime() : undefined,
         gender: gender.trim() ? gender.trim() : undefined,
         bio: bio.trim(),
+        vanModel: vanModel.trim() || undefined,
+        nomadSinceYear: parsedYear && !isNaN(parsedYear) ? parsedYear : undefined,
       });
       router.back();
     } catch {
@@ -130,6 +137,31 @@ export default function EditAboutScreen() {
           />
           <Text style={[styles.helpText, { color: colors.onSurfaceVariant }]}>
             Share what makes you unique and what you're looking for on the road.
+          </Text>
+        </View>
+
+        <View style={styles.section}>
+          <GlassInput
+            label="Van Model"
+            placeholder="e.g. Mercedes Sprinter '22"
+            value={vanModel}
+            onChangeText={setVanModel}
+          />
+          <Text style={[styles.helpText, { color: colors.onSurfaceVariant }]}>
+            Shown under your name on your profile.
+          </Text>
+        </View>
+
+        <View style={styles.section}>
+          <GlassInput
+            label="Nomad Since (Year)"
+            placeholder="e.g. 2021"
+            value={nomadSinceYear}
+            onChangeText={setNomadSinceYear}
+            keyboardType="number-pad"
+          />
+          <Text style={[styles.helpText, { color: colors.onSurfaceVariant }]}>
+            The year you started your nomad journey.
           </Text>
         </View>
       </ScrollView>

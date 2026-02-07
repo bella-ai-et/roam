@@ -153,10 +153,14 @@ export type RouteMatch = {
     travelStyles?: string[];
     lifestyleLabel?: string;
     vanVerified?: boolean;
+    vanModel?: string;
+    nomadSinceYear?: number;
     currentRoute?: Array<{
       location: { latitude: number; longitude: number; name: string };
       arrivalDate: string;
       departureDate: string;
+      status?: string;
+      notes?: string;
     }>;
   };
   overlaps: Array<{
@@ -334,6 +338,23 @@ export function ExpandedCard({ match, onCollapse, onLike, onReject, bottomInset 
   const displayName = `${user.name}${age != null ? `, ${age}` : ""}`;
   const lifestyleLabel = user.lifestyleLabel ?? "";
 
+  // Van info line for expanded view
+  const vanModel = user.vanModel;
+  const nomadYears =
+    user.nomadSinceYear != null
+      ? Math.max(0, new Date().getFullYear() - user.nomadSinceYear)
+      : undefined;
+  const nomadText =
+    nomadYears != null
+      ? nomadYears === 0
+        ? "New nomad"
+        : nomadYears === 1
+          ? "Nomad for 1 yr"
+          : `Nomad for ${nomadYears} yrs`
+      : undefined;
+  const vanInfoParts = [vanModel, nomadText].filter(Boolean);
+  const vanInfoLine = vanInfoParts.length > 0 ? vanInfoParts.join(" \u2022 ") : "";
+
   const interestNames =
     match.sharedInterests.length >= 3
       ? match.sharedInterests.slice(0, 3)
@@ -404,6 +425,9 @@ export function ExpandedCard({ match, onCollapse, onLike, onReject, bottomInset 
               </View>
               {lifestyleLabel ? (
                 <Text style={styles.previewLifestyle}>{lifestyleLabel}</Text>
+              ) : null}
+              {vanInfoLine ? (
+                <Text style={styles.previewLifestyle}>{"\uD83D\uDE90 " + vanInfoLine}</Text>
               ) : null}
             </Pressable>
           </View>

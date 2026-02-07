@@ -11,6 +11,7 @@ export const AppColors = {
   accent: "#F4D03F",
   accentOrange: "#E89B74",
   accentGreen: "#74A48A",
+  accentTeal: "#5C9D9B",
   like: "#4CD964",
   reject: "#FF3B30",
   match: "#D27C5C",
@@ -50,6 +51,7 @@ export function useAppTheme() {
       accent: AppColors.accent,
       accentOrange: AppColors.accentOrange,
       accentGreen: AppColors.accentGreen,
+      accentTeal: AppColors.accentTeal,
     },
   };
 }

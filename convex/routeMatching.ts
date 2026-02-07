@@ -36,8 +36,16 @@ export const findRouteMatches = query({
     }
 
     const allUsers = await ctx.db.query("users").collect();
+    const isCurrentUserVerified = currentUser.vanVerified === true;
     const candidates = allUsers.filter(
-      (u) => u._id !== userId && u.currentRoute && u.currentRoute.length > 0
+      (u) => {
+        if (u._id === userId) return false;
+        if (!u.currentRoute || u.currentRoute.length === 0) return false;
+        const visibility = u.pathVisibility ?? "everyone";
+        if (visibility === "private") return false;
+        if (visibility === "verified_syncs" && !isCurrentUserVerified) return false;
+        return true;
+      }
     );
 
     const mySwipes = await ctx.db

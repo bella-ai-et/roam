@@ -15,6 +15,9 @@ export default defineSchema({
     vanBuildStatus: v.optional(v.string()), 
     vanVerified: v.boolean(), 
     vanPhotoUrl: v.optional(v.string()), 
+    vanModel: v.optional(v.string()),
+    nomadSinceYear: v.optional(v.number()),
+    pathVisibility: v.optional(v.string()),
     currentRoute: v.optional(v.array(v.object({ 
       location: v.object({ latitude: v.number(), longitude: v.number(), name: v.string() }), 
       arrivalDate: v.string(), 
@@ -23,6 +26,7 @@ export default defineSchema({
       role: v.optional(v.string()),
       intent: v.optional(v.string()),
       destinationType: v.optional(v.string()),
+      status: v.optional(v.string()),
     }))),
     travelStyles: v.optional(v.array(v.string())),
     lifestyleLabel: v.optional(v.string()),
