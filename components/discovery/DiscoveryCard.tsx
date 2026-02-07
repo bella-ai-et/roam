@@ -40,6 +40,15 @@ function normalizePhoto(value?: string) {
   return value.replace(/`/g, "").trim();
 }
 
+function formatPreviewDate(value: string) {
+  try {
+    const d = new Date(value);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } catch {
+    return value;
+  }
+}
+
 function DiscoveryImage({
   storageId,
   style,
@@ -185,6 +194,13 @@ export function PreviewCard({ match, onLike, onReject, onExpand }: PreviewCardPr
       : undefined;
   const displayName = `${user.name}${age != null ? `, ${age}` : ""}`;
   const lifestyleLabel = user.lifestyleLabel ?? "";
+  const overlap = match.overlaps?.[0];
+  const travelTitle = overlap ? `Paths cross in ${overlap.locationName}` : "";
+  const travelMeta = overlap
+    ? `${formatPreviewDate(overlap.dateRange.start)} — ${formatPreviewDate(
+        overlap.dateRange.end
+      )} • Within ${Math.round(overlap.distance)}km`
+    : "";
 
   return (
     <View style={styles.previewCard}>
@@ -221,8 +237,8 @@ export function PreviewCard({ match, onLike, onReject, onExpand }: PreviewCardPr
 
       {/* Gradient overlay */}
       <LinearGradient
-        colors={["transparent", "rgba(0,0,0,0.45)", "rgba(0,0,0,0.9)"]}
-        locations={[0, 0.5, 1]}
+        colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.25)", "rgba(0,0,0,0.75)"]}
+        locations={[0, 0.55, 1]}
         style={styles.previewGradient}
         pointerEvents="none"
       />
@@ -235,6 +251,19 @@ export function PreviewCard({ match, onLike, onReject, onExpand }: PreviewCardPr
             <Ionicons name="shield-checkmark" size={20} color="#93c5fd" style={{ marginLeft: 8 }} />
           )}
         </View>
+        {overlap ? (
+          <View style={styles.previewTravelBlock}>
+            <View style={styles.previewTravelRow}>
+              <Ionicons name="compass" size={16} color="rgba(255,255,255,0.95)" />
+              <Text style={styles.previewTravelTitle} numberOfLines={1}>
+                {travelTitle}
+              </Text>
+            </View>
+            <Text style={styles.previewTravelMeta} numberOfLines={1}>
+              {travelMeta}
+            </Text>
+          </View>
+        ) : null}
         {lifestyleLabel ? (
           <Text style={styles.previewLifestyle}>{lifestyleLabel}</Text>
         ) : null}
@@ -324,58 +353,60 @@ export function ExpandedCard({ match, onCollapse, onLike, onReject, bottomInset 
     <View style={[styles.expandedCard, { backgroundColor: isDark ? colors.surface : AppColors.background.light }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 + bottomInset }}
+        contentContainerStyle={{ paddingBottom: 140 + bottomInset }}
         nestedScrollEnabled
       >
         {/* ── Photo section ── */}
         <View style={styles.expandedPhotoSection}>
-          <TapPhotoViewer
-            photos={photos}
-            activeIndex={activePhotoIndex}
-            onChangeIndex={setActivePhotoIndex}
-            photoStyle={styles.expandedPhotoFill}
-          />
-
-          {/* Dots */}
-          {photos.length > 1 && (
-            <View style={styles.dotsRow} pointerEvents="none">
-              {photos.map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.dot,
-                    { backgroundColor: "#fff", opacity: i === activePhotoIndex ? 1 : 0.4 },
-                  ]}
-                />
-              ))}
-            </View>
-          )}
-
-          {/* Mini map – decorative + expand icon for future map */}
-          <View style={styles.miniMapWrap}>
-            <MiniRouteMap
-              avatarStorageId={photos[0]}
-              avatarElement={<DiscoveryAvatar storageId={photos[0]} size={24} />}
+          <View style={styles.expandedPhotoFrame}>
+            <TapPhotoViewer
+              photos={photos}
+              activeIndex={activePhotoIndex}
+              onChangeIndex={setActivePhotoIndex}
+              photoStyle={styles.expandedPhotoFill}
             />
-          </View>
 
-          {/* Gradient + name */}
-          <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.7)"]}
-            style={styles.expandedPhotoGradient}
-            pointerEvents="none"
-          />
-          <Pressable style={styles.expandedPhotoInfo} onPress={onCollapse}>
-            <View style={styles.previewNameRow}>
-              <Text style={styles.previewName}>{displayName}</Text>
-              {user.vanVerified && (
-                <Ionicons name="shield-checkmark" size={16} color="#93c5fd" style={{ marginLeft: 6 }} />
-              )}
+            {/* Dots */}
+            {photos.length > 1 && (
+              <View style={styles.dotsRow} pointerEvents="none">
+                {photos.map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.dot,
+                      { backgroundColor: "#fff", opacity: i === activePhotoIndex ? 1 : 0.4 },
+                    ]}
+                  />
+                ))}
+              </View>
+            )}
+
+            {/* Mini map – decorative + expand icon for future map */}
+            <View style={styles.miniMapWrap}>
+              <MiniRouteMap
+                avatarStorageId={photos[0]}
+                avatarElement={<DiscoveryAvatar storageId={photos[0]} size={24} />}
+              />
             </View>
-            {lifestyleLabel ? (
-              <Text style={styles.previewLifestyle}>{lifestyleLabel}</Text>
-            ) : null}
-          </Pressable>
+
+            {/* Gradient + name */}
+            <LinearGradient
+              colors={["transparent", "rgba(0,0,0,0.7)"]}
+              style={styles.expandedPhotoGradient}
+              pointerEvents="none"
+            />
+            <Pressable style={styles.expandedPhotoInfo} onPress={onCollapse}>
+              <View style={styles.previewNameRow}>
+                <Text style={styles.previewName}>{displayName}</Text>
+                {user.vanVerified && (
+                  <Ionicons name="shield-checkmark" size={16} color="#93c5fd" style={{ marginLeft: 6 }} />
+                )}
+              </View>
+              {lifestyleLabel ? (
+                <Text style={styles.previewLifestyle}>{lifestyleLabel}</Text>
+              ) : null}
+            </Pressable>
+          </View>
         </View>
 
         {/* ── Section: Paths cross ── */}
@@ -457,7 +488,7 @@ export function ExpandedCard({ match, onCollapse, onLike, onReject, bottomInset 
       </ScrollView>
 
       {/* Fixed action buttons at bottom */}
-      <View style={[styles.expandedActions, { paddingBottom: Math.max(bottomInset, 16) }]}>
+      <View style={[styles.expandedActions, { bottom: bottomInset }]}>
         <Pressable
           onPress={onReject}
           style={({ pressed }) => [
@@ -514,7 +545,7 @@ export function DiscoveryCard({ match, onPress }: DiscoveryCardProps) {
    Styles
    ═══════════════════════════════════════════════════════════ */
 
-const PREVIEW_CARD_HEIGHT = SCREEN_HEIGHT * 0.72;
+const PREVIEW_CARD_HEIGHT = SCREEN_HEIGHT * 0.78;
 
 const styles = StyleSheet.create({
   /* ── Preview card ── */
@@ -530,7 +561,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: PREVIEW_CARD_HEIGHT * 0.45,
+    height: PREVIEW_CARD_HEIGHT * 0.5,
     pointerEvents: "none",
   },
   previewInfoRow: {
@@ -554,6 +585,26 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginTop: 4,
   },
+  previewTravelBlock: {
+    marginTop: 8,
+  },
+  previewTravelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  previewTravelTitle: {
+    flex: 1,
+    fontSize: 14,
+    color: "rgba(255,255,255,0.95)",
+    fontWeight: "800",
+  },
+  previewTravelMeta: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.78)",
+    fontWeight: "600",
+    marginTop: 4,
+  },
   previewButtons: {
     position: "absolute",
     bottom: 24,
@@ -562,7 +613,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 24,
+    gap: 36,
   },
   previewRejectBtn: {
     width: 72,
@@ -585,18 +636,25 @@ const styles = StyleSheet.create({
   /* ── Expanded card ── */
   expandedCard: {
     flex: 1,
-    borderRadius: DISCOVERY_CARD_RADIUS,
+    borderRadius: 0,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.06)",
+    borderWidth: 0,
+    borderColor: "transparent",
   },
   expandedPhotoSection: {
     width: "100%",
+    paddingHorizontal: 16,
+    paddingTop: 10,
+  },
+  expandedPhotoFrame: {
+    width: "100%",
     height: DISCOVERY_PHOTO_HEIGHT,
+    borderRadius: 26,
     overflow: "hidden",
+    backgroundColor: "#000",
   },
   expandedPhotoFill: {
-    width: CARD_WIDTH,
+    width: "100%",
     height: DISCOVERY_PHOTO_HEIGHT,
   },
   expandedPhotoGradient: {
@@ -619,8 +677,8 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 32,
+    justifyContent: "space-between",
+    paddingHorizontal: 34,
     paddingTop: 12,
     paddingBottom: 16,
   },

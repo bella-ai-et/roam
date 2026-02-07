@@ -409,13 +409,13 @@ export default function DiscoverScreen() {
         <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
           <Text style={[styles.headerTitle, { color: colors.onBackground }]}>Discover</Text>
         </View>
-        <View style={[styles.expandedContent, { paddingBottom: tabBarHeight }]}>
+        <View style={[styles.expandedContent, { paddingBottom: 0 }]}>
           <ExpandedCard
             match={activeMatch}
             onCollapse={() => setExpanded(false)}
             onLike={() => triggerSwipe("like")}
             onReject={() => triggerSwipe("reject")}
-            bottomInset={tabBarHeight}
+            bottomInset={0}
           />
         </View>
         <MatchCelebration
@@ -432,7 +432,7 @@ export default function DiscoverScreen() {
   // No header in preview — card fills the space between status bar and tab bar (matching design)
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.content, { paddingTop: insets.top, paddingBottom: tabBarHeight }]}>
+      <View style={[styles.content, { paddingTop: insets.top, paddingBottom: insets.bottom + 8 }]}>
         <View style={styles.cardStack}>
           {stack
             .slice()
@@ -516,12 +516,13 @@ const styles = StyleSheet.create({
   },
   expandedContent: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 0,
   },
   cardStack: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-end",
+    paddingBottom: 0,
   },
   cardContainer: {
     position: "absolute",
