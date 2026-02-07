@@ -1,11 +1,10 @@
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
-  FlatList,
-  Dimensions,
+  ScrollView,
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -16,9 +15,11 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { useAppTheme } from "@/lib/theme";
 import { AppColors } from "@/lib/theme";
 import {
+  CARD_WIDTH,
   DISCOVERY_CARD_RADIUS,
   DISCOVERY_PHOTO_HEIGHT,
   INTERESTS,
+  SCREEN_HEIGHT,
   TRAVEL_STYLES,
 } from "@/lib/constants";
 import { JourneyStopsTimeline } from "./JourneyStopsTimeline";
@@ -26,7 +27,7 @@ import { MiniRouteMap } from "./MiniRouteMap";
 import { PathsCrossBadge } from "./PathsCrossBadge";
 import { buildJourneyStops } from "./discoveryUtils";
 
-const CARD_WIDTH = Dimensions.get("window").width - 32;
+/* ─── Helpers ─── */
 
 function isRemoteUrl(value?: string) {
   if (!value) return false;
@@ -78,19 +79,59 @@ function DiscoveryAvatar({ storageId, size }: { storageId?: string; size: number
     normalized && !isRemote ? { storageId: normalized as Id<"_storage"> } : "skip"
   );
 
-  const style = { width: size, height: size, borderRadius: size / 2 };
+  const imgStyle = { width: size, height: size, borderRadius: size / 2 };
   if (isRemote && normalized) {
-    return <Image source={{ uri: normalized }} style={style} contentFit="cover" />;
+    return <Image source={{ uri: normalized }} style={imgStyle} contentFit="cover" />;
   }
   if (!url) {
     return (
-      <View style={[style, { backgroundColor: colors.surfaceVariant }]}>
+      <View style={[imgStyle, { backgroundColor: colors.surfaceVariant, alignItems: "center" as const, justifyContent: "center" as const }]}>
         <Ionicons name="person" size={size * 0.5} color={colors.onSurfaceVariant} />
       </View>
     );
   }
-  return <Image source={{ uri: url }} style={style} contentFit="cover" />;
+  return <Image source={{ uri: url }} style={imgStyle} contentFit="cover" />;
 }
+
+/** Tap-zone photo browser: tap left half = prev, tap right half = next. No horizontal scroll. */
+function TapPhotoViewer({
+  photos,
+  activeIndex,
+  onChangeIndex,
+  photoStyle,
+}: {
+  photos: string[];
+  activeIndex: number;
+  onChangeIndex: (i: number) => void;
+  photoStyle: object;
+}) {
+  if (photos.length === 0) {
+    return <DiscoveryImage storageId={undefined} style={photoStyle} />;
+  }
+
+  const handleTap = (side: "left" | "right") => {
+    if (side === "left" && activeIndex > 0) {
+      onChangeIndex(activeIndex - 1);
+    } else if (side === "right" && activeIndex < photos.length - 1) {
+      onChangeIndex(activeIndex + 1);
+    }
+  };
+
+  return (
+    <View style={photoStyle}>
+      <DiscoveryImage storageId={photos[activeIndex]} style={StyleSheet.absoluteFill} />
+      {/* Invisible tap zones */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        <View style={styles.tapZoneRow}>
+          <Pressable style={styles.tapZoneLeft} onPress={() => handleTap("left")} />
+          <Pressable style={styles.tapZoneRight} onPress={() => handleTap("right")} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/* ─── Types ─── */
 
 export type RouteMatch = {
   user: {
@@ -117,23 +158,142 @@ export type RouteMatch = {
   sharedInterests: string[];
 };
 
-interface DiscoveryCardProps {
+/* ═══════════════════════════════════════════════════════════
+   Preview Card (Image 1)
+   - Full-bleed photo, tap left/right to browse
+   - Mini map top-right (decorative, future map feature)
+   - Name + lifestyle over gradient at bottom
+   - Like/dislike buttons inside card at very bottom
+   ═══════════════════════════════════════════════════════════ */
+
+interface PreviewCardProps {
   match: RouteMatch;
-  onPress: () => void;
-  onExpandMap?: () => void;
+  onLike: () => void;
+  onReject: () => void;
+  onExpand: () => void;
 }
 
-export function DiscoveryCard({ match, onPress, onExpandMap }: DiscoveryCardProps) {
+export function PreviewCard({ match, onLike, onReject, onExpand }: PreviewCardProps) {
+  const { colors } = useAppTheme();
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+
+  const user = match.user;
+  const photos = user.photos ?? [];
+  const age =
+    user.dateOfBirth != null
+      ? Math.floor((Date.now() - user.dateOfBirth) / (365.25 * 24 * 60 * 60 * 1000))
+      : undefined;
+  const displayName = `${user.name}${age != null ? `, ${age}` : ""}`;
+  const lifestyleLabel = user.lifestyleLabel ?? "";
+
+  return (
+    <View style={styles.previewCard}>
+      {/* Full-bleed photo with tap zones */}
+      <TapPhotoViewer
+        photos={photos}
+        activeIndex={activePhotoIndex}
+        onChangeIndex={setActivePhotoIndex}
+        photoStyle={StyleSheet.absoluteFill}
+      />
+
+      {/* Photo dots – top center */}
+      {photos.length > 1 && (
+        <View style={styles.dotsRow} pointerEvents="none">
+          {photos.map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                { backgroundColor: "#fff", opacity: i === activePhotoIndex ? 1 : 0.4 },
+              ]}
+            />
+          ))}
+        </View>
+      )}
+
+      {/* Mini map – top right (decorative / future map) */}
+      <View style={styles.miniMapWrap} pointerEvents="none">
+        <MiniRouteMap
+          avatarStorageId={photos[0]}
+          avatarElement={<DiscoveryAvatar storageId={photos[0]} size={28} />}
+        />
+      </View>
+
+      {/* Gradient overlay */}
+      <LinearGradient
+        colors={["transparent", "rgba(0,0,0,0.45)", "rgba(0,0,0,0.9)"]}
+        locations={[0, 0.5, 1]}
+        style={styles.previewGradient}
+        pointerEvents="none"
+      />
+
+      {/* Name + lifestyle – tapping opens expanded view */}
+      <Pressable style={styles.previewInfoRow} onPress={onExpand}>
+        <View style={styles.previewNameRow}>
+          <Text style={styles.previewName}>{displayName}</Text>
+          {user.vanVerified && (
+            <Ionicons name="shield-checkmark" size={20} color="#93c5fd" style={{ marginLeft: 8 }} />
+          )}
+        </View>
+        {lifestyleLabel ? (
+          <Text style={styles.previewLifestyle}>{lifestyleLabel}</Text>
+        ) : null}
+      </Pressable>
+
+      {/* Action buttons – inside card at bottom */}
+      <View style={styles.previewButtons}>
+        <Pressable
+          onPress={onReject}
+          style={({ pressed }) => [
+            styles.previewRejectBtn,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.background,
+              transform: [{ scale: pressed ? 0.9 : 1 }],
+            },
+          ]}
+        >
+          <Ionicons name="close" size={32} color={colors.onSurfaceVariant} />
+        </Pressable>
+        <Pressable
+          onPress={onLike}
+          style={({ pressed }) => [
+            styles.previewLikeBtn,
+            {
+              backgroundColor: colors.primary,
+              transform: [{ scale: pressed ? 0.9 : 1 }],
+            },
+          ]}
+        >
+          <Ionicons name="heart" size={30} color="#fff" />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Expanded Card (Image 2)
+   - Smaller photo section (320px) with tap browsing
+   - "Paths cross in..." badge
+   - Bio quote block
+   - Interest pills
+   - Journey stops (adaptive: fill or scroll)
+   - Travel style pills
+   - Each section is a clear visual block
+   ═══════════════════════════════════════════════════════════ */
+
+interface ExpandedCardProps {
+  match: RouteMatch;
+  onCollapse: () => void;
+  onLike: () => void;
+  onReject: () => void;
+  bottomInset?: number;
+}
+
+export function ExpandedCard({ match, onCollapse, onLike, onReject, bottomInset = 0 }: ExpandedCardProps) {
   const { colors, isDark } = useAppTheme();
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
-  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 60 }).current;
-  const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: { index: number | null }[] }) => {
-      if (viewableItems.length > 0 && viewableItems[0].index != null) {
-        setActivePhotoIndex(viewableItems[0].index);
-      }
-    }
-  ).current;
 
   const user = match.user;
   const photos = user.photos ?? [];
@@ -145,172 +305,346 @@ export function DiscoveryCard({ match, onPress, onExpandMap }: DiscoveryCardProp
   const displayName = `${user.name}${age != null ? `, ${age}` : ""}`;
   const lifestyleLabel = user.lifestyleLabel ?? "";
 
-  const interestNames = match.sharedInterests.length >= 3
-    ? match.sharedInterests.slice(0, 3)
-    : [...(user.interests ?? []), ...match.sharedInterests]
-        .filter((v, i, a) => a.indexOf(v) === i)
-        .slice(0, 3);
+  const interestNames =
+    match.sharedInterests.length >= 3
+      ? match.sharedInterests.slice(0, 3)
+      : [...(user.interests ?? []), ...match.sharedInterests]
+          .filter((v, i, a) => a.indexOf(v) === i)
+          .slice(0, 3);
 
   const journeyStops = buildJourneyStops(match as Parameters<typeof buildJourneyStops>[0]);
   const travelStyleLabels = (user.travelStyles ?? []).map(
     (v) => TRAVEL_STYLES.find((t) => t.value === v)?.label ?? v
   );
   const travelStyleEmojis = (user.travelStyles ?? []).map(
-    (v) => TRAVEL_STYLES.find((t) => t.value === v)?.emoji ?? "🚐"
+    (v) => TRAVEL_STYLES.find((t) => t.value === v)?.emoji ?? "\u{1F690}"
   );
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.card, { backgroundColor: isDark ? colors.surface : AppColors.background.light }]}
-    >
-      {/* Photo section */}
-      <View style={styles.photoSection}>
-        {photos.length === 0 ? (
-          <DiscoveryImage storageId={undefined} style={styles.photoFill} />
-        ) : (
-          <FlatList
-            data={photos}
-            keyExtractor={(_, i) => String(i)}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onViewableItemsChanged={onViewableItemsChanged}
-            viewabilityConfig={viewabilityConfig}
-            renderItem={({ item }) => (
-              <DiscoveryImage storageId={item} style={styles.photoFill} />
-            )}
+    <View style={[styles.expandedCard, { backgroundColor: isDark ? colors.surface : AppColors.background.light }]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 + bottomInset }}
+        nestedScrollEnabled
+      >
+        {/* ── Photo section ── */}
+        <View style={styles.expandedPhotoSection}>
+          <TapPhotoViewer
+            photos={photos}
+            activeIndex={activePhotoIndex}
+            onChangeIndex={setActivePhotoIndex}
+            photoStyle={styles.expandedPhotoFill}
           />
-        )}
 
-        {/* Dots top center */}
-        {photos.length > 1 && (
-          <View style={styles.dotsRow}>
-            {photos.map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.dot,
-                  {
-                    backgroundColor: "#fff",
-                    opacity: i === activePhotoIndex ? 1 : 0.4,
-                  },
-                ]}
-              />
-            ))}
+          {/* Dots */}
+          {photos.length > 1 && (
+            <View style={styles.dotsRow} pointerEvents="none">
+              {photos.map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.dot,
+                    { backgroundColor: "#fff", opacity: i === activePhotoIndex ? 1 : 0.4 },
+                  ]}
+                />
+              ))}
+            </View>
+          )}
+
+          {/* Mini map – decorative + expand icon for future map */}
+          <View style={styles.miniMapWrap}>
+            <MiniRouteMap
+              avatarStorageId={photos[0]}
+              avatarElement={<DiscoveryAvatar storageId={photos[0]} size={24} />}
+            />
+          </View>
+
+          {/* Gradient + name */}
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.7)"]}
+            style={styles.expandedPhotoGradient}
+            pointerEvents="none"
+          />
+          <Pressable style={styles.expandedPhotoInfo} onPress={onCollapse}>
+            <View style={styles.previewNameRow}>
+              <Text style={styles.previewName}>{displayName}</Text>
+              {user.vanVerified && (
+                <Ionicons name="shield-checkmark" size={16} color="#93c5fd" style={{ marginLeft: 6 }} />
+              )}
+            </View>
+            {lifestyleLabel ? (
+              <Text style={styles.previewLifestyle}>{lifestyleLabel}</Text>
+            ) : null}
+          </Pressable>
+        </View>
+
+        {/* ── Section: Paths cross ── */}
+        {overlap && (
+          <View style={styles.section}>
+            <PathsCrossBadge
+              locationName={overlap.locationName}
+              dateRangeStart={overlap.dateRange.start}
+              dateRangeEnd={overlap.dateRange.end}
+              distanceKm={overlap.distance}
+            />
           </View>
         )}
 
-        {/* Mini map top right */}
-        <View style={styles.miniMapWrap}>
-          <MiniRouteMap
-            avatarStorageId={photos[0]}
-            avatarElement={<DiscoveryAvatar storageId={photos[0]} size={28} />}
-            onExpand={onExpandMap}
-          />
-        </View>
-
-        {/* Gradient + user info */}
-        <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.7)"]}
-          style={styles.photoGradient}
-        />
-        <View style={styles.photoTextRow}>
-          <Text style={styles.photoName}>{displayName}</Text>
-          {user.vanVerified && (
-            <Ionicons name="shield-checkmark" size={18} color="#93c5fd" />
-          )}
-          {lifestyleLabel ? (
-            <Text style={styles.lifestyleLabel}>{lifestyleLabel}</Text>
-          ) : null}
-        </View>
-      </View>
-
-      {/* Content */}
-      <View style={styles.content}>
-        {overlap && (
-          <PathsCrossBadge
-            locationName={overlap.locationName}
-            dateRangeStart={overlap.dateRange.start}
-            dateRangeEnd={overlap.dateRange.end}
-            distanceKm={overlap.distance}
-          />
-        )}
-
+        {/* ── Section: Bio ── */}
         {user.bio ? (
-          <View style={[styles.bioBox, { backgroundColor: isDark ? colors.surfaceVariant : "#f8fafc" }]}>
-            <Text style={[styles.bioText, { color: colors.onSurface }]} numberOfLines={4}>
-              "{user.bio}"
-            </Text>
+          <View style={styles.section}>
+            <View style={[styles.bioBox, { backgroundColor: isDark ? colors.surfaceVariant : "#f8fafc" }]}>
+              <Text style={[styles.bioText, { color: isDark ? colors.onSurface : "#334155" }]}>
+                &ldquo;{user.bio}&rdquo;
+              </Text>
+            </View>
           </View>
         ) : null}
 
+        {/* ── Section: Interests ── */}
         {interestNames.length > 0 && (
-          <View style={styles.interestRow}>
-            {interestNames.map((name) => {
-              const meta = INTERESTS.find((i) => i.name === name);
-              return (
+          <View style={styles.section}>
+            <View style={styles.interestRow}>
+              {interestNames.map((name) => {
+                const meta = INTERESTS.find((item) => item.name === name);
+                return (
+                  <View
+                    key={name}
+                    style={[
+                      styles.interestPill,
+                      {
+                        backgroundColor: isDark
+                          ? "rgba(210,124,92,0.2)"
+                          : "rgba(210,124,92,0.1)",
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.interestPillText, { color: colors.primary }]}>
+                      {meta?.emoji ? `${meta.emoji} ` : ""}{name}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* ── Section: Journey stops ── */}
+        {journeyStops.length > 0 && (
+          <View style={styles.section}>
+            <JourneyStopsTimeline stops={journeyStops} />
+          </View>
+        )}
+
+        {/* ── Section: Travel styles ── */}
+        {travelStyleLabels.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.travelStylesRow}>
+              {travelStyleLabels.map((label, i) => (
                 <View
-                  key={name}
-                  style={[
-                    styles.interestPill,
-                    {
-                      backgroundColor: isDark
-                        ? "rgba(210,124,92,0.25)"
-                        : "rgba(210,124,92,0.12)",
-                    },
-                  ]}
+                  key={label}
+                  style={[styles.travelStylePill, { backgroundColor: isDark ? colors.surfaceVariant : "#f1f5f9" }]}
                 >
-                  <Text style={[styles.interestPillText, { color: colors.primary }]}>
-                    {meta?.emoji ? `${meta.emoji} ` : ""}{name}
+                  <Text style={styles.travelStyleEmoji}>{travelStyleEmojis[i] ?? "\u{1F690}"}</Text>
+                  <Text style={[styles.travelStyleText, { color: colors.onSurfaceVariant }]}>
+                    {label}
                   </Text>
                 </View>
-              );
-            })}
+              ))}
+            </View>
           </View>
         )}
+      </ScrollView>
 
-        <JourneyStopsTimeline stops={journeyStops} />
-
-        {travelStyleLabels.length > 0 && (
-          <View style={styles.travelStylesRow}>
-            {travelStyleLabels.map((label, i) => (
-              <View
-                key={label}
-                style={[styles.travelStylePill, { backgroundColor: colors.surfaceVariant }]}
-              >
-                <Text style={styles.travelStyleEmoji}>{travelStyleEmojis[i] ?? "🚐"}</Text>
-                <Text style={[styles.travelStyleText, { color: colors.onSurfaceVariant }]}>
-                  {label}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
+      {/* Fixed action buttons at bottom */}
+      <View style={[styles.expandedActions, { paddingBottom: Math.max(bottomInset, 16) }]}>
+        <Pressable
+          onPress={onReject}
+          style={({ pressed }) => [
+            styles.previewRejectBtn,
+            {
+              backgroundColor: colors.surface,
+              borderColor: isDark ? colors.outline : "#f1f5f9",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.15,
+              shadowRadius: 20,
+              elevation: 8,
+              transform: [{ scale: pressed ? 0.95 : 1 }],
+            },
+          ]}
+        >
+          <Ionicons name="close" size={32} color={colors.onSurfaceVariant} />
+        </Pressable>
+        <Pressable
+          onPress={onLike}
+          style={({ pressed }) => [
+            styles.previewLikeBtn,
+            {
+              backgroundColor: colors.primary,
+              shadowColor: colors.primary,
+              shadowOffset: { width: 0, height: 12 },
+              shadowOpacity: 0.4,
+              shadowRadius: 24,
+              elevation: 12,
+              transform: [{ scale: pressed ? 0.95 : 1 }],
+            },
+          ]}
+        >
+          <Ionicons name="heart" size={30} color="#fff" />
+        </Pressable>
       </View>
-    </Pressable>
+    </View>
   );
 }
 
+/* ─── Legacy wrapper ─── */
+
+interface DiscoveryCardProps {
+  match: RouteMatch;
+  onPress: () => void;
+  onExpandMap?: () => void;
+}
+
+export function DiscoveryCard({ match, onPress }: DiscoveryCardProps) {
+  return <PreviewCard match={match} onExpand={onPress} onLike={onPress} onReject={onPress} />;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Styles
+   ═══════════════════════════════════════════════════════════ */
+
+const PREVIEW_CARD_HEIGHT = SCREEN_HEIGHT * 0.72;
+
 const styles = StyleSheet.create({
-  card: {
+  /* ── Preview card ── */
+  previewCard: {
     width: CARD_WIDTH,
+    height: PREVIEW_CARD_HEIGHT,
+    borderRadius: DISCOVERY_CARD_RADIUS,
+    overflow: "hidden",
+    backgroundColor: "#000",
+  },
+  previewGradient: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: PREVIEW_CARD_HEIGHT * 0.45,
+    pointerEvents: "none",
+  },
+  previewInfoRow: {
+    position: "absolute",
+    bottom: 110,
+    left: 28,
+    right: 28,
+  },
+  previewNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  previewName: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#fff",
+  },
+  previewLifestyle: {
+    fontSize: 15,
+    color: "rgba(255,255,255,0.9)",
+    fontWeight: "500",
+    marginTop: 4,
+  },
+  previewButtons: {
+    position: "absolute",
+    bottom: 24,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 24,
+  },
+  previewRejectBtn: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  previewLikeBtn: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 4,
+    borderColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  /* ── Expanded card ── */
+  expandedCard: {
+    flex: 1,
     borderRadius: DISCOVERY_CARD_RADIUS,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.06)",
   },
-  photoSection: {
-    height: DISCOVERY_PHOTO_HEIGHT,
+  expandedPhotoSection: {
     width: "100%",
+    height: DISCOVERY_PHOTO_HEIGHT,
+    overflow: "hidden",
   },
-  photoFill: {
+  expandedPhotoFill: {
     width: CARD_WIDTH,
     height: DISCOVERY_PHOTO_HEIGHT,
   },
+  expandedPhotoGradient: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+  },
+  expandedPhotoInfo: {
+    position: "absolute",
+    bottom: 16,
+    left: 20,
+    right: 20,
+  },
+  expandedActions: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 32,
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+
+  /* ── Section wrapper for expanded view ── */
+  section: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+
+  /* ── Shared ── */
   photoPlaceholder: {
     alignItems: "center",
     justifyContent: "center",
+  },
+  tapZoneRow: {
+    flex: 1,
+    flexDirection: "row",
+  },
+  tapZoneLeft: {
+    flex: 1,
+  },
+  tapZoneRight: {
+    flex: 1,
   },
   dotsRow: {
     position: "absolute",
@@ -333,75 +667,47 @@ const styles = StyleSheet.create({
     right: 16,
     zIndex: 10,
   },
-  photoGradient: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 140,
-  },
-  photoTextRow: {
-    position: "absolute",
-    bottom: 20,
-    left: 20,
-    right: 20,
-  },
-  photoName: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#fff",
-  },
-  lifestyleLabel: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.85)",
-    marginTop: 4,
-  },
-  content: {
-    padding: 24,
-  },
   bioBox: {
     padding: 16,
     borderRadius: 16,
-    marginTop: 16,
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.06)",
   },
   bioText: {
     fontSize: 14,
     fontStyle: "italic",
-    lineHeight: 20,
+    lineHeight: 22,
   },
   interestRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginTop: 16,
   },
   interestPill: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 999,
   },
   interestPillText: {
     fontSize: 11,
     fontWeight: "700",
+    letterSpacing: -0.2,
   },
   travelStylesRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginTop: 16,
   },
   travelStylePill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 999,
   },
   travelStyleEmoji: {
-    fontSize: 12,
+    fontSize: 14,
   },
   travelStyleText: {
     fontSize: 11,

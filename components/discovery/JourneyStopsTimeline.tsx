@@ -38,67 +38,79 @@ export function JourneyStopsTimeline({ stops }: JourneyStopsTimelineProps) {
     }
   };
 
+  const renderCard = (stop: JourneyStopItem, index: number, useFlex: boolean) => {
+    const isOverlap = stop.type === "overlap";
+    const isStart = stop.type === "start";
+    const title = getStopTitle(stop.type);
+
+    return (
+      <View
+        key={`${stop.locationName}-${index}`}
+        style={[
+          useFlex ? styles.stopCardFlex : styles.stopCard,
+          isStart && {
+            backgroundColor: isDark ? colors.surfaceVariant : "#f1f5f9",
+            borderColor: isDark ? colors.outline : "#e2e8f0",
+          },
+          !isStart && !isOverlap && {
+            backgroundColor: colors.surface,
+            borderColor: isDark ? colors.outline : "#e2e8f0",
+          },
+          isOverlap && {
+            backgroundColor: isDark ? "rgba(232,155,116,0.2)" : "rgba(232,155,116,0.12)",
+            borderWidth: 2,
+            borderColor: "rgba(232,155,116,0.5)",
+          },
+        ]}
+      >
+        {isOverlap && (
+          <View style={[styles.overlapBadge, { backgroundColor: AppColors.accentOrange }]}>
+            <Ionicons name="location" size={10} color="#fff" />
+          </View>
+        )}
+        <Text
+          style={[
+            styles.stopTitle,
+            isStart && { color: colors.onSurfaceVariant },
+            !isStart && !isOverlap && { color: colors.primary },
+            isOverlap && { color: AppColors.accentOrange },
+          ]}
+        >
+          {title}
+        </Text>
+        <Text style={[styles.locationName, { color: colors.onSurface }]} numberOfLines={1}>
+          {stop.locationName}
+        </Text>
+        <Text style={[styles.subLabel, { color: colors.onSurfaceVariant }]}>
+          {stop.subLabel}
+        </Text>
+      </View>
+    );
+  };
+
+  // Adaptive: 1-2 stops fill the width, 3+ stops scroll horizontally
+  const useFlex = stops.length <= 2;
+
   return (
     <View style={styles.wrapper}>
       <Text style={[styles.sectionLabel, { color: colors.onSurfaceVariant }]}>
         JOURNEY STOPS
       </Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-        style={styles.scroll}
-      >
-        {stops.map((stop, index) => {
-          const isOverlap = stop.type === "overlap";
-          const isStart = stop.type === "start";
-          const title = getStopTitle(stop.type);
-
-          return (
-            <View
-              key={`${stop.locationName}-${index}`}
-              style={[
-                styles.stopCard,
-                isStart && {
-                  backgroundColor: isDark ? colors.surfaceVariant : "#f1f5f9",
-                  borderColor: isDark ? colors.outline : "#e2e8f0",
-                },
-                !isStart && !isOverlap && {
-                  backgroundColor: colors.surface,
-                  borderColor: isDark ? colors.outline : "#e2e8f0",
-                },
-                isOverlap && {
-                  backgroundColor: isDark ? "rgba(232,155,116,0.2)" : "rgba(232,155,116,0.12)",
-                  borderWidth: 2,
-                  borderColor: "rgba(232,155,116,0.5)",
-                },
-              ]}
-            >
-              {isOverlap && (
-                <View style={[styles.overlapBadge, { backgroundColor: AppColors.accentOrange }]}>
-                  <Ionicons name="location" size={10} color="#fff" />
-                </View>
-              )}
-              <Text
-                style={[
-                  styles.stopTitle,
-                  isStart && { color: colors.onSurfaceVariant },
-                  !isStart && !isOverlap && { color: colors.primary },
-                  isOverlap && { color: AppColors.accentOrange },
-                ]}
-              >
-                {title}
-              </Text>
-              <Text style={[styles.locationName, { color: colors.onSurface }]} numberOfLines={1}>
-                {stop.locationName}
-              </Text>
-              <Text style={[styles.subLabel, { color: colors.onSurfaceVariant }]}>
-                {stop.subLabel}
-              </Text>
-            </View>
-          );
-        })}
-      </ScrollView>
+      {useFlex ? (
+        <View style={styles.flexRow}>
+          {stops.map((stop, index) => renderCard(stop, index, true))}
+        </View>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          style={styles.scroll}
+          nestedScrollEnabled
+        >
+          {stops.map((stop, index) => renderCard(stop, index, false))}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -122,8 +134,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingBottom: 8,
   },
+  flexRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
   stopCard: {
     width: JOURNEY_STOP_CARD_WIDTH,
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+  },
+  stopCardFlex: {
+    flex: 1,
     borderRadius: 16,
     padding: 12,
     borderWidth: 1,

@@ -1,4 +1,4 @@
-export { DiscoveryCard } from "./DiscoveryCard";
+export { DiscoveryCard, PreviewCard, ExpandedCard } from "./DiscoveryCard";
 export type { RouteMatch } from "./DiscoveryCard";
 export { JourneyStopsTimeline } from "./JourneyStopsTimeline";
 export type { JourneyStopItem, JourneyStopType } from "./JourneyStopsTimeline";
