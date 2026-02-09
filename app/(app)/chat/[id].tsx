@@ -8,6 +8,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -81,6 +82,23 @@ export default function ChatScreen() {
   const [messageText, setMessageText] = useState("");
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => setKeyboardVisible(true)
+    );
+    const hideSubscription = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardVisible(false)
+    );
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const sendMessage = useMutation(api.messages.sendMessage);
   const markMessagesRead = useMutation(api.messages.markMessagesRead);
@@ -137,7 +155,8 @@ export default function ChatScreen() {
       {/* Messages + Input wrapped in KeyboardAvoidingView */}
       <KeyboardAvoidingView
         style={styles.keyboardAvoid}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : "padding"}
+        enabled={Platform.OS === "ios" || isKeyboardVisible}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         <FlatList
@@ -199,6 +218,7 @@ export default function ChatScreen() {
             {
               borderTopColor: colors.outline,
               backgroundColor: colors.background,
+              paddingBottom: isKeyboardVisible ? 8 : insets.bottom,
             },
           ]}
         >
