@@ -39,7 +39,7 @@ export default function WelcomeScreen() {
           style={styles.button}
           onPress={() => router.push("/(app)/onboarding/profile")}
         >
-          <Text style={styles.buttonText}>Get Started</Text>
+          <Text style={styles.buttonText}>Apply to Join</Text>
         </Pressable>
       </View>
     </LinearGradient>

@@ -41,6 +41,9 @@ export const findRouteMatches = query({
       (u) => {
         if (u._id === userId) return false;
         if (!u.currentRoute || u.currentRoute.length === 0) return false;
+         if (!u.photos || u.photos.length === 0) return false;
+        const appStatus = u.applicationStatus ?? "approved";
+        if (appStatus !== "approved") return false;
         const visibility = u.pathVisibility ?? "everyone";
         if (visibility === "private") return false;
         if (visibility === "verified_syncs" && !isCurrentUserVerified) return false;

@@ -38,7 +38,7 @@ export const createProfile = mutation({
     lifestyleLabel: v.optional(v.string()),
   }, 
   handler: async (ctx, args) => { 
-    return await ctx.db.insert("users", { ...args, bio: undefined }); 
+    return await ctx.db.insert("users", { ...args, bio: undefined, onboardingComplete: false, applicationStatus: "pending" }); 
   }, 
 }); 
 
@@ -66,6 +66,42 @@ export const updateProfile = mutation({
     await ctx.db.patch(userId, filtered); 
   }, 
 }); 
+
+export const completeOnboarding = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    await ctx.db.patch(userId, { onboardingComplete: true });
+  },
+});
+
+export const approveUser = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    await ctx.db.patch(userId, { applicationStatus: "approved" });
+  },
+});
+
+export const approveWithInviteCode = mutation({
+  args: {
+    userId: v.id("users"),
+    inviteCode: v.string(),
+  },
+  handler: async (ctx, { userId, inviteCode }) => {
+    if (inviteCode.trim().toLowerCase() !== "shipyard2026") {
+      throw new Error("Invalid invite code");
+    }
+    await ctx.db.patch(userId, { applicationStatus: "approved" });
+    return { success: true };
+  },
+});
+
+export const getApplicationStatus = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const user = await ctx.db.get(userId);
+    return user?.applicationStatus ?? "approved";
+  },
+});
 
 export const updateRoute = mutation({ 
   args: { 

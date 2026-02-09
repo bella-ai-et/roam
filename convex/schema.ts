@@ -30,6 +30,8 @@ export default defineSchema({
     }))),
     travelStyles: v.optional(v.array(v.string())),
     lifestyleLabel: v.optional(v.string()),
+    onboardingComplete: v.optional(v.boolean()),
+    applicationStatus: v.optional(v.string()), // "pending" | "approved" | "rejected"
   }).index("by_clerkId", ["clerkId"]), 
   swipes: defineTable({ 
     swiperId: v.id("users"), 

@@ -1,14 +1,20 @@
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useMutation } from "convex/react";
 
 import { GlassButton } from "@/components/glass";
 import { useAppTheme } from "@/lib/theme";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { api } from "@/convex/_generated/api";
 
 export default function CompleteScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
+  const { currentUser } = useCurrentUser();
+  const completeOnboarding = useMutation(api.users.completeOnboarding);
+  const [submitting, setSubmitting] = useState(false);
 
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -41,8 +47,15 @@ export default function CompleteScreen() {
     startAnimations();
   }, [startAnimations]);
 
-  const handleStartExploring = () => {
-    router.push("/(app)/(tabs)");
+  const handleViewProfile = async () => {
+    if (!currentUser?._id || submitting) return;
+    setSubmitting(true);
+    try {
+      await completeOnboarding({ userId: currentUser._id });
+      router.replace("/(app)/(pending)" as any);
+    } catch {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -52,24 +65,24 @@ export default function CompleteScreen() {
           style={[
             styles.checkCircle,
             {
-              backgroundColor: "#34C759",
+              backgroundColor: "#E8924A",
               transform: [{ scale: scaleAnim }, { scale: pulseAnim }],
             },
           ]}
         >
-          <Ionicons name="checkmark" size={40} color="#FFFFFF" />
+          <Ionicons name="paper-plane" size={36} color="#FFFFFF" />
         </Animated.View>
 
         <Text style={[styles.title, { color: colors.onSurface, marginTop: 32 }]}>
-          You are all set!
+          Application Submitted
         </Text>
         
         <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
-          Your Roam profile is live
+          We'll review your profile and get back to you soon.{"\n"}In the meantime, you can view and edit your profile.
         </Text>
 
         <View style={styles.buttonContainer}>
-          <GlassButton title="Start Exploring" onPress={handleStartExploring} />
+          <GlassButton title="View My Profile" onPress={handleViewProfile} loading={submitting} />
         </View>
       </View>
     </View>
