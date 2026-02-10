@@ -17,7 +17,7 @@ export default function EditRouteScreen() {
         isPro={isPro}
         onComplete={() => router.back()}
         onBack={() => router.back()}
-        title="Edit Route"
+        title="Plan Route"
         onShowPaywall={(msg) => {
           setPaywallMessage(msg);
           setPaywallVisible(true);

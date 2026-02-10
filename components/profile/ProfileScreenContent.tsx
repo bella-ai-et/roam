@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { View, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +17,7 @@ import {
   MediaTab,
   PathVisibilitySheet,
 } from "@/components/profile";
+import { EditStopSheet } from "@/components/profile/EditStopSheet";
 import type { ProfileTab } from "@/components/profile";
 
 interface ProfileScreenContentProps {
@@ -32,6 +33,9 @@ export default function ProfileScreenContent({ headerContent }: ProfileScreenCon
 
   const [activeTab, setActiveTab] = useState<ProfileTab>("routes");
   const [visibilitySheetVisible, setVisibilitySheetVisible] = useState(false);
+  const [editingStopIndex, setEditingStopIndex] = useState<number | null>(null);
+
+  const updateRoute = useMutation(api.users.updateRoute);
 
   const displayName = currentUser?.name || clerkUser?.fullName || "Your Profile";
   const photos = currentUser?.photos ?? [];
@@ -53,6 +57,38 @@ export default function ProfileScreenContent({ headerContent }: ProfileScreenCon
     router.push("/(app)/edit-route" as any);
   };
 
+  const handleEditStop = useCallback((index: number) => {
+    hapticButtonPress();
+    setEditingStopIndex(index);
+  }, []);
+
+  const handleSaveStop = useCallback(
+    async (index: number, updated: any) => {
+      if (!currentUser?._id) return;
+      const newRoute = [...routeStops];
+      newRoute[index] = updated;
+      try {
+        await updateRoute({ userId: currentUser._id, route: newRoute });
+      } catch {
+        Alert.alert("Error", "Failed to update stop");
+      }
+    },
+    [currentUser, routeStops, updateRoute]
+  );
+
+  const handleDeleteStop = useCallback(
+    async (index: number) => {
+      if (!currentUser?._id) return;
+      const newRoute = routeStops.filter((_: any, i: number) => i !== index);
+      try {
+        await updateRoute({ userId: currentUser._id, route: newRoute });
+      } catch {
+        Alert.alert("Error", "Failed to remove stop");
+      }
+    },
+    [currentUser, routeStops, updateRoute]
+  );
+
   const handleChangeVisibility = async (visibility: string) => {
     if (!currentUser?._id) return;
     try {
@@ -73,6 +109,7 @@ export default function ProfileScreenContent({ headerContent }: ProfileScreenCon
             <JourneyTimeline
               stops={routeStops}
               onAddStop={handleEditRoute}
+              onEditStop={handleEditStop}
             />
             <PathVisibilityCard
               visibility={pathVisibility}
@@ -138,6 +175,15 @@ export default function ProfileScreenContent({ headerContent }: ProfileScreenCon
         currentVisibility={pathVisibility}
         onClose={() => setVisibilitySheetVisible(false)}
         onSelect={handleChangeVisibility}
+      />
+
+      <EditStopSheet
+        visible={editingStopIndex !== null}
+        stop={editingStopIndex !== null ? routeStops[editingStopIndex] : null}
+        stopIndex={editingStopIndex ?? 0}
+        onClose={() => setEditingStopIndex(null)}
+        onSave={handleSaveStop}
+        onDelete={handleDeleteStop}
       />
     </View>
   );

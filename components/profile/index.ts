@@ -9,3 +9,4 @@ export { BioInfoTab } from "./BioInfoTab";
 export { MediaTab } from "./MediaTab";
 
 export { PathVisibilitySheet } from "./PathVisibilitySheet";
+export { EditStopSheet } from "./EditStopSheet";

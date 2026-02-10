@@ -15,6 +15,7 @@ interface RouteStop {
 interface JourneyTimelineProps {
   stops: RouteStop[];
   onAddStop: () => void;
+  onEditStop?: (index: number) => void;
 }
 
 function inferStatus(index: number, total: number, explicit?: string): StopStatus {
@@ -26,7 +27,7 @@ function inferStatus(index: number, total: number, explicit?: string): StopStatu
   return "next";
 }
 
-export function JourneyTimeline({ stops, onAddStop }: JourneyTimelineProps) {
+export function JourneyTimeline({ stops, onAddStop, onEditStop }: JourneyTimelineProps) {
   const { colors, isDark } = useAppTheme();
 
   const stopData: RouteStopData[] = stops.map((stop, index) => ({
@@ -53,8 +54,8 @@ export function JourneyTimeline({ stops, onAddStop }: JourneyTimelineProps) {
           onPress={onAddStop}
           style={[styles.addButton, { backgroundColor: `${AppColors.primary}15` }]}
         >
-          <Ionicons name="create-outline" size={14} color={AppColors.primary} />
-          <Text style={[styles.addButtonText, { color: AppColors.primary }]}>EDIT ROUTE</Text>
+          <Ionicons name="map-outline" size={14} color={AppColors.primary} />
+          <Text style={[styles.addButtonText, { color: AppColors.primary }]}>PLAN ROUTE</Text>
         </Pressable>
       </View>
 
@@ -110,7 +111,10 @@ export function JourneyTimeline({ stops, onAddStop }: JourneyTimelineProps) {
 
               {/* Card */}
               <View style={styles.cardWrapper}>
-                <JourneyStopCard stop={stop} />
+                <JourneyStopCard
+                  stop={stop}
+                  onEdit={onEditStop ? () => onEditStop(index) : undefined}
+                />
               </View>
             </View>
           ))}

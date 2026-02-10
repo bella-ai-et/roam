@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { AppColors, useAppTheme } from "@/lib/theme";
 
@@ -17,6 +17,7 @@ export interface RouteStopData {
 
 interface JourneyStopCardProps {
   stop: RouteStopData;
+  onEdit?: () => void;
 }
 
 function formatDateRange(arrival: string, departure: string): string {
@@ -45,7 +46,7 @@ function formatMonth(date: string): string {
   }
 }
 
-export function JourneyStopCard({ stop }: JourneyStopCardProps) {
+export function JourneyStopCard({ stop, onEdit }: JourneyStopCardProps) {
   const { colors, isDark } = useAppTheme();
   const isCurrent = stop.status === "current";
   const isDestination = stop.status === "destination";
@@ -106,7 +107,14 @@ export function JourneyStopCard({ stop }: JourneyStopCardProps) {
             </Text>
           )}
         </View>
-        <Text style={[styles.dateText, { color: colors.onSurfaceVariant }]}>{dateText}</Text>
+        <View style={styles.cardHeaderRight}>
+          <Text style={[styles.dateText, { color: colors.onSurfaceVariant }]}>{dateText}</Text>
+          {onEdit && (
+            <Pressable onPress={onEdit} hitSlop={10} style={styles.editButton}>
+              <Ionicons name="pencil-outline" size={14} color={colors.onSurfaceVariant} />
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {/* Syncs active (current stop) — placeholder */}
@@ -170,6 +178,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontStyle: "italic",
     marginTop: 4,
+  },
+  cardHeaderRight: {
+    alignItems: "flex-end",
+    gap: 6,
+  },
+  editButton: {
+    padding: 4,
   },
   dateText: {
     fontSize: 10,
