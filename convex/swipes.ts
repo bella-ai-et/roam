@@ -14,6 +14,34 @@ export const recordSwipe = mutation({
       .first();
     if (existing) return { matched: false, matchId: null };
 
+    // Daily likes limit enforcement
+    if (action === "like") {
+      const swiper = await ctx.db.get(swiperId);
+      const tier = swiper?.subscriptionTier ?? "free";
+      const FREE_DAILY_LIKES = 5;
+
+      if (tier !== "pro") {
+        const now = Date.now();
+        const resetAt = swiper?.dailyLikesResetAt ?? 0;
+        let usedToday = swiper?.dailyLikesUsed ?? 0;
+
+        // Reset counter if a new day has started
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        if (resetAt < startOfToday.getTime()) {
+          usedToday = 0;
+          await ctx.db.patch(swiperId, { dailyLikesUsed: 0, dailyLikesResetAt: now });
+        }
+
+        if (usedToday >= FREE_DAILY_LIKES) {
+          throw new Error("DAILY_LIKES_LIMIT");
+        }
+
+        // Increment counter
+        await ctx.db.patch(swiperId, { dailyLikesUsed: usedToday + 1, dailyLikesResetAt: resetAt < startOfToday.getTime() ? now : resetAt });
+      }
+    }
+
     await ctx.db.insert("swipes", { swiperId, swipedId, action, createdAt: Date.now() });
 
     if (action === "like") {

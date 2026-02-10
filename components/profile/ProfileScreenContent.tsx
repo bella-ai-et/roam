@@ -15,7 +15,6 @@ import {
   PathVisibilityCard,
   BioInfoTab,
   MediaTab,
-  AddStopSheet,
   PathVisibilitySheet,
 } from "@/components/profile";
 import type { ProfileTab } from "@/components/profile";
@@ -29,11 +28,9 @@ export default function ProfileScreenContent({ headerContent }: ProfileScreenCon
   const { currentUser, clerkUser } = useCurrentUser();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const updateRoute = useMutation(api.users.updateRoute);
   const updateProfile = useMutation(api.users.updateProfile);
 
   const [activeTab, setActiveTab] = useState<ProfileTab>("routes");
-  const [addStopVisible, setAddStopVisible] = useState(false);
   const [visibilitySheetVisible, setVisibilitySheetVisible] = useState(false);
 
   const displayName = currentUser?.name || clerkUser?.fullName || "Your Profile";
@@ -51,48 +48,9 @@ export default function ProfileScreenContent({ headerContent }: ProfileScreenCon
     router.push("/(app)/edit-photos");
   };
 
-  const handleAddStop = async (stop: {
-    locationName: string;
-    latitude: number;
-    longitude: number;
-    arrivalDate: string;
-    departureDate: string;
-    notes: string;
-    status: string;
-  }) => {
-    if (!currentUser?._id) return;
-    try {
-      const existingStops = (currentUser.currentRoute ?? []).map((s) => ({
-        location: s.location,
-        arrivalDate: s.arrivalDate,
-        departureDate: s.departureDate,
-        notes: s.notes,
-        role: s.role,
-        intent: s.intent,
-        destinationType: s.destinationType,
-        status: s.status,
-      }));
-
-      const newStop = {
-        location: {
-          latitude: stop.latitude,
-          longitude: stop.longitude,
-          name: stop.locationName,
-        },
-        arrivalDate: stop.arrivalDate,
-        departureDate: stop.departureDate,
-        notes: stop.notes || undefined,
-        status: stop.status,
-      };
-
-      await updateRoute({
-        userId: currentUser._id,
-        route: [...existingStops, newStop],
-      });
-      setAddStopVisible(false);
-    } catch {
-      Alert.alert("Error", "Failed to add stop");
-    }
+  const handleEditRoute = () => {
+    hapticButtonPress();
+    router.push("/(app)/edit-route" as any);
   };
 
   const handleChangeVisibility = async (visibility: string) => {
@@ -114,7 +72,7 @@ export default function ProfileScreenContent({ headerContent }: ProfileScreenCon
           <>
             <JourneyTimeline
               stops={routeStops}
-              onAddStop={() => setAddStopVisible(true)}
+              onAddStop={handleEditRoute}
             />
             <PathVisibilityCard
               visibility={pathVisibility}
@@ -175,11 +133,6 @@ export default function ProfileScreenContent({ headerContent }: ProfileScreenCon
       </ScrollView>
 
       {/* Bottom Sheets */}
-      <AddStopSheet
-        visible={addStopVisible}
-        onClose={() => setAddStopVisible(false)}
-        onSave={handleAddStop}
-      />
       <PathVisibilitySheet
         visible={visibilitySheetVisible}
         currentVisibility={pathVisibility}

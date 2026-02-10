@@ -78,7 +78,7 @@ export default function LookingForScreen() {
           { paddingTop: insets.top + 60, paddingBottom: 100 }
         ]}
       >
-        <ProgressBar current={4} total={9} />
+        <ProgressBar current={4} total={7} />
 
         <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
           You can choose more than one

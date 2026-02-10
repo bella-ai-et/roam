@@ -7,6 +7,7 @@ import {
   Pressable,
   Alert,
   Linking,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,6 +19,8 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { hapticButtonPress } from "@/lib/haptics";
 import { api } from "@/convex/_generated/api";
 import { PathVisibilitySheet } from "@/components/profile";
+import { useSubscription } from "@/hooks/useSubscription";
+import { Paywall } from "@/components/Paywall";
 
 type SettingsRow = {
   label: string;
@@ -39,6 +42,8 @@ export default function SettingsScreen() {
   const { currentUser } = useCurrentUser();
   const updateProfile = useMutation(api.users.updateProfile);
   const [visibilitySheetVisible, setVisibilitySheetVisible] = useState(false);
+  const [paywallVisible, setPaywallVisible] = useState(false);
+  const { isPro, restorePurchases } = useSubscription();
 
   const pathVisibility = (currentUser as any)?.pathVisibility ?? "everyone";
 
@@ -83,7 +88,36 @@ export default function SettingsScreen() {
     Alert.alert("Coming Soon", "This feature is not yet available.");
   };
 
+  const handleRestorePurchases = async () => {
+    hapticButtonPress();
+    const restored = await restorePurchases();
+    if (restored) {
+      Alert.alert("Restored", "Your Pro subscription has been restored.");
+    } else {
+      Alert.alert("No Subscription Found", "We couldn't find an active subscription to restore.");
+    }
+  };
+
   const sections: SettingsSection[] = [
+    {
+      title: "Subscription",
+      rows: [
+        {
+          label: isPro ? "Pro Plan" : "Free Plan",
+          icon: isPro ? "diamond" : "leaf-outline",
+          onPress: () => {
+            hapticButtonPress();
+            if (!isPro) setPaywallVisible(true);
+          },
+          badge: isPro ? "ACTIVE" : "UPGRADE",
+        },
+        {
+          label: "Restore Purchases",
+          icon: "refresh-outline",
+          onPress: handleRestorePurchases,
+        },
+      ],
+    },
     {
       title: "Account",
       rows: [
@@ -269,6 +303,9 @@ export default function SettingsScreen() {
         onClose={() => setVisibilitySheetVisible(false)}
         onSelect={handleChangeVisibility}
       />
+      <Modal visible={paywallVisible} animationType="slide" presentationStyle="pageSheet">
+        <Paywall onClose={() => setPaywallVisible(false)} />
+      </Modal>
     </View>
   );
 }

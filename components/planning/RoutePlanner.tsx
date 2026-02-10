@@ -1,20 +1,19 @@
-import { useRouter } from "expo-router";
 import React, { useMemo, useState, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
-import { format, parse } from "date-fns";
+import { format, parse, addDays } from "date-fns";
 import { useMutation } from "convex/react";
 
 import { GlassHeader, GlassButton, GlassInput, GlassDatePicker, GlassOption } from "@/components/glass";
-import { ProgressBar } from "@/components/ui/ProgressBar";
-import { useAppTheme } from "@/lib/theme";
+import { useAppTheme, AppColors } from "@/lib/theme";
 import { hapticSelection, hapticSuccess, hapticError } from "@/lib/haptics";
 import { AdaptiveGlassView } from "@/lib/glass";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { api } from "@/convex/_generated/api";
 import { Doc } from "@/convex/_generated/dataModel";
+import { FREE_PLAN, PRO_PLAN } from "@/lib/constants";
 
 type RouteStop = NonNullable<Doc<"users">["currentRoute"]>[number];
 type RouteIntent = "planned" | "preference";
@@ -54,12 +53,30 @@ const destinationTypeOptions: {
   { value: "adventure", label: "Adventure", emoji: "🏕️", description: "Exploring or new territory." },
 ];
 
-export default function RouteScreen() {
-  const router = useRouter();
+interface RoutePlannerProps {
+  onComplete: () => void;
+  onBack?: () => void;
+  isPro: boolean;
+  /** Optional title override */
+  title?: string;
+  /** Show paywall when user hits a Pro limit */
+  onShowPaywall?: (message: string) => void;
+}
+
+export function RoutePlanner({
+  onComplete,
+  onBack,
+  isPro,
+  title = "Your Route",
+  onShowPaywall,
+}: RoutePlannerProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const { currentUser } = useCurrentUser();
   const updateRoute = useMutation(api.users.updateRoute);
+
+  const limits = isPro ? PRO_PLAN : FREE_PLAN;
+  const maxDate = addDays(new Date(), limits.maxRouteDays);
 
   const existingStops = useMemo(() => currentUser?.currentRoute || [], [currentUser]);
 
@@ -240,6 +257,17 @@ export default function RouteScreen() {
       return;
     }
 
+    // Pro gate: check stopover limit
+    if (!isPro && extraStops.length >= limits.maxStopovers) {
+      hapticError();
+      if (onShowPaywall) {
+        onShowPaywall("Unlock unlimited stopovers with Pro");
+      } else {
+        Alert.alert("Stopover Limit", "Upgrade to Pro to add more stopovers.");
+      }
+      return;
+    }
+
     setAddingStop(true);
     const trimmedName = newLocationName.trim();
     const coords = await geocodeLocation(trimmedName);
@@ -303,6 +331,22 @@ export default function RouteScreen() {
     };
   };
 
+  // Pro gate: enforce date limit
+  const enforceDateLimit = (date: Date | undefined, setter: (d: Date | undefined) => void) => {
+    if (!date) return;
+    if (date > maxDate && !isPro) {
+      hapticError();
+      if (onShowPaywall) {
+        onShowPaywall("Plan further ahead with Pro");
+      } else {
+        Alert.alert("Date Limit", `Free plan allows planning up to ${limits.maxRouteDays} days ahead. Upgrade to Pro for longer planning.`);
+      }
+      setter(maxDate);
+      return;
+    }
+    setter(date);
+  };
+
   const handleContinue = async () => {
     const issues: string[] = [];
     const trimmedOrigin = originName.trim();
@@ -314,14 +358,6 @@ export default function RouteScreen() {
 
     if (!destinationArrival || !destinationDeparture) {
       issues.push("Add arrival and departure dates for the destination.");
-    }
-
-    if (!routeIntent) {
-      // Defaults are applied for better UX.
-    }
-
-    if (!destinationType) {
-      // Defaults are applied for better UX.
     }
 
     if ((originArrival || originDeparture) && !trimmedOrigin) {
@@ -382,9 +418,10 @@ export default function RouteScreen() {
     }
     try {
       await updateRoute({ userId: currentUser._id, route: compiledStops });
-      router.push("/(app)/onboarding/complete");
-    } catch {
-      Alert.alert("Error", "Failed to save your route.");
+      onComplete();
+    } catch (err: any) {
+      const msg = err?.message || "Failed to save your route.";
+      Alert.alert("Error", msg);
     } finally {
       setSavingRoute(false);
     }
@@ -444,11 +481,13 @@ export default function RouteScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <GlassHeader
-        title="Your Route"
+        title={title}
         leftContent={
-          <Pressable onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color={colors.onSurface} />
-          </Pressable>
+          onBack ? (
+            <Pressable onPress={onBack}>
+              <Ionicons name="arrow-back" size={24} color={colors.onSurface} />
+            </Pressable>
+          ) : undefined
         }
       />
 
@@ -458,7 +497,20 @@ export default function RouteScreen() {
           { paddingTop: insets.top + 60, paddingBottom: 120 },
         ]}
       >
-        <ProgressBar current={7} total={9} />
+        {/* Plan tier indicator */}
+        <View style={styles.tierRow}>
+          <View style={[styles.tierBadge, { backgroundColor: isPro ? `${AppColors.primary}20` : "rgba(255,255,255,0.08)" }]}>
+            <Ionicons name={isPro ? "diamond" : "leaf-outline"} size={14} color={isPro ? AppColors.primary : colors.onSurfaceVariant} />
+            <Text style={[styles.tierText, { color: isPro ? AppColors.primary : colors.onSurfaceVariant }]}>
+              {isPro ? "PRO" : "FREE"}
+            </Text>
+          </View>
+          {!isPro && (
+            <Text style={[styles.limitHint, { color: colors.onSurfaceVariant }]}>
+              {limits.maxStopovers} stopover  ·  {limits.maxRouteDays} day window
+            </Text>
+          )}
+        </View>
 
         <Text style={[styles.subtitle, { color: colors.onSurface }]}>
           Where are you heading?
@@ -569,21 +621,23 @@ export default function RouteScreen() {
             <View style={{ flex: 1 }}>
               <GlassDatePicker
                 value={originArrival}
-                onChange={setOriginArrival}
+                onChange={(d) => enforceDateLimit(d, setOriginArrival)}
                 placeholder="Arrival"
                 label="Arrival"
                 containerStyle={{ marginBottom: 0 }}
+                maximumDate={isPro ? undefined : maxDate}
               />
             </View>
             <View style={{ width: 12 }} />
             <View style={{ flex: 1 }}>
               <GlassDatePicker
                 value={originDeparture}
-                onChange={setOriginDeparture}
+                onChange={(d) => enforceDateLimit(d, setOriginDeparture)}
                 placeholder="Departure"
                 label="Departure"
                 containerStyle={{ marginBottom: 0 }}
                 minimumDate={originArrival}
+                maximumDate={isPro ? undefined : maxDate}
               />
             </View>
           </View>
@@ -606,21 +660,23 @@ export default function RouteScreen() {
             <View style={{ flex: 1 }}>
               <GlassDatePicker
                 value={destinationArrival}
-                onChange={setDestinationArrival}
+                onChange={(d) => enforceDateLimit(d, setDestinationArrival)}
                 placeholder="Arrival"
                 label="Arrival"
                 containerStyle={{ marginBottom: 0 }}
+                maximumDate={isPro ? undefined : maxDate}
               />
             </View>
             <View style={{ width: 12 }} />
             <View style={{ flex: 1 }}>
               <GlassDatePicker
                 value={destinationDeparture}
-                onChange={setDestinationDeparture}
+                onChange={(d) => enforceDateLimit(d, setDestinationDeparture)}
                 placeholder="Departure"
                 label="Departure"
                 containerStyle={{ marginBottom: 0 }}
                 minimumDate={destinationArrival}
+                maximumDate={isPro ? undefined : maxDate}
               />
             </View>
           </View>
@@ -645,30 +701,45 @@ export default function RouteScreen() {
                 start.setDate(start.getDate() + 7);
                 const end = new Date(start);
                 end.setDate(start.getDate() + 4);
+                if (!isPro && end > maxDate) {
+                  if (onShowPaywall) {
+                    onShowPaywall("Plan further ahead with Pro");
+                    return;
+                  }
+                }
                 setDestinationArrival(start);
                 setDestinationDeparture(end);
               }}
             >
               <Text style={[styles.presetText, { color: colors.primary }]}>Next week</Text>
             </Pressable>
-            <Pressable
-              style={[styles.presetButton, { borderColor: colors.primary }]}
-              onPress={() => {
-                const start = new Date();
-                start.setDate(start.getDate() + 30);
-                const end = new Date(start);
-                end.setDate(start.getDate() + 7);
-                setDestinationArrival(start);
-                setDestinationDeparture(end);
-              }}
-            >
-              <Text style={[styles.presetText, { color: colors.primary }]}>Next month</Text>
-            </Pressable>
+            {isPro && (
+              <Pressable
+                style={[styles.presetButton, { borderColor: colors.primary }]}
+                onPress={() => {
+                  const start = new Date();
+                  start.setDate(start.getDate() + 30);
+                  const end = new Date(start);
+                  end.setDate(start.getDate() + 7);
+                  setDestinationArrival(start);
+                  setDestinationDeparture(end);
+                }}
+              >
+                <Text style={[styles.presetText, { color: colors.primary }]}>Next month</Text>
+              </Pressable>
+            )}
           </View>
         </View>
 
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Stops along the way</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Stops along the way</Text>
+            {!isPro && (
+              <Text style={[styles.limitBadge, { color: colors.onSurfaceVariant }]}>
+                {extraStops.length}/{limits.maxStopovers}
+              </Text>
+            )}
+          </View>
           <Text style={[styles.sectionDescription, { color: colors.onSurfaceVariant }]}>
             Add intermediate stops if you have a route with multiple legs.
           </Text>
@@ -707,6 +778,15 @@ export default function RouteScreen() {
             <Pressable
               style={[styles.addStopButton, { backgroundColor: "rgba(255,255,255,0.05)" }]}
               onPress={() => {
+                if (!isPro && extraStops.length >= limits.maxStopovers) {
+                  hapticError();
+                  if (onShowPaywall) {
+                    onShowPaywall("Unlock unlimited stopovers with Pro");
+                  } else {
+                    Alert.alert("Stopover Limit", "Upgrade to Pro to add more stopovers.");
+                  }
+                  return;
+                }
                 setShowAddForm(true);
                 hapticSelection();
               }}
@@ -729,21 +809,23 @@ export default function RouteScreen() {
                 <View style={{ flex: 1 }}>
                   <GlassDatePicker
                     value={newArrival}
-                    onChange={setNewArrival}
+                    onChange={(d) => enforceDateLimit(d, setNewArrival)}
                     placeholder="Arrival"
                     label="Arrival"
                     containerStyle={{ marginBottom: 0 }}
+                    maximumDate={isPro ? undefined : maxDate}
                   />
                 </View>
                 <View style={{ width: 12 }} />
                 <View style={{ flex: 1 }}>
                   <GlassDatePicker
                     value={newDeparture}
-                    onChange={setNewDeparture}
+                    onChange={(d) => enforceDateLimit(d, setNewDeparture)}
                     placeholder="Departure"
                     label="Departure"
                     containerStyle={{ marginBottom: 0 }}
                     minimumDate={newArrival}
+                    maximumDate={isPro ? undefined : maxDate}
                   />
                 </View>
               </View>
@@ -818,7 +900,7 @@ export default function RouteScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-        <GlassButton title="Continue" onPress={handleContinue} loading={savingRoute} />
+        <GlassButton title="Save Route" onPress={handleContinue} loading={savingRoute} />
       </View>
     </View>
   );
@@ -830,6 +912,28 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 24,
+  },
+  tierRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
+  },
+  tierBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  tierText: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  limitHint: {
+    fontSize: 12,
   },
   subtitle: {
     fontSize: 24,
@@ -849,6 +953,16 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
     marginBottom: 10,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  limitBadge: {
+    fontSize: 13,
+    fontWeight: "600",
   },
   originHeaderRow: {
     flexDirection: "row",

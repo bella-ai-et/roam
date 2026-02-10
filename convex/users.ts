@@ -24,16 +24,6 @@ export const createProfile = mutation({
     vanModel: v.optional(v.string()),
     nomadSinceYear: v.optional(v.number()),
     pathVisibility: v.optional(v.string()),
-    currentRoute: v.optional(v.array(v.object({ 
-      location: v.object({ latitude: v.number(), longitude: v.number(), name: v.string() }), 
-      arrivalDate: v.string(), 
-      departureDate: v.string(), 
-      notes: v.optional(v.string()), 
-      role: v.optional(v.string()),
-      intent: v.optional(v.string()),
-      destinationType: v.optional(v.string()),
-      status: v.optional(v.string()),
-    }))),
     travelStyles: v.optional(v.array(v.string())),
     lifestyleLabel: v.optional(v.string()),
   }, 
@@ -117,7 +107,17 @@ export const updateRoute = mutation({
       status: v.optional(v.string()),
     })), 
   }, 
-  handler: async (ctx, { userId, route }) => { 
+  handler: async (ctx, { userId, route }) => {
+    // Server-side stopover limit enforcement
+    const user = await ctx.db.get(userId);
+    const tier = user?.subscriptionTier ?? "free";
+    if (tier !== "pro") {
+      const stopovers = route.filter((s) => s.role !== "origin" && s.role !== "destination");
+      if (stopovers.length > 1) {
+        throw new Error("Free plan allows only 1 stopover. Upgrade to Pro for unlimited stopovers.");
+      }
+    }
+
     await ctx.db.patch(userId, { currentRoute: route });
 
     // Recalculate sync statuses for all matches involving this user
@@ -183,4 +183,14 @@ export const updateRoute = mutation({
       });
     }
   }, 
+});
+
+export const updateSubscriptionTier = mutation({
+  args: {
+    userId: v.id("users"),
+    tier: v.string(),
+  },
+  handler: async (ctx, { userId, tier }) => {
+    await ctx.db.patch(userId, { subscriptionTier: tier });
+  },
 });

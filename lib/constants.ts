@@ -125,6 +125,25 @@ export const SYNC_STATUS_CONFIG: Record<string, { bgColor: string; textColor: st
   departed:  { bgColor: "rgba(148,163,184,0.1)", textColor: "#94A3B8", icon: "log-out-outline" },
 };
 
+/** Subscription plan limits */
+export const FREE_PLAN = {
+  maxStopovers: 1,
+  maxRouteDays: 7,
+  dailyLikes: 5,
+} as const;
+
+export const PRO_PLAN = {
+  maxStopovers: Infinity,
+  maxRouteDays: 180,
+  dailyLikes: Infinity,
+} as const;
+
+export type PlanTier = "free" | "pro";
+
+export function getPlanLimits(tier: PlanTier) {
+  return tier === "pro" ? PRO_PLAN : FREE_PLAN;
+}
+
 export const CATEGORY_COLORS: Record<string, { bg: string; darkBg: string; text: string; darkText: string }> = {
   electrical: { bg: "#FFFBEB", darkBg: "rgba(245,158,11,0.12)", text: "#D97706", darkText: "#FBBF24" },
   plumbing:   { bg: "#EFF6FF", darkBg: "rgba(59,130,246,0.12)", text: "#2563EB", darkText: "#60A5FA" },

@@ -7,5 +7,5 @@ export type { RouteStopData, StopStatus } from "./JourneyStopCard";
 export { PathVisibilityCard } from "./PathVisibilityCard";
 export { BioInfoTab } from "./BioInfoTab";
 export { MediaTab } from "./MediaTab";
-export { AddStopSheet } from "./AddStopSheet";
+
 export { PathVisibilitySheet } from "./PathVisibilitySheet";

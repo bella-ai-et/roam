@@ -73,7 +73,7 @@ export default function TravelStylesScreen() {
       <ScrollView
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 60, paddingBottom: 100 }]}
       >
-        <ProgressBar current={2} total={9} />
+        <ProgressBar current={2} total={7} />
 
         <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>Pick anything that fits you</Text>
 

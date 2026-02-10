@@ -1,5 +1,5 @@
 import { useQuery } from "convex/react";
-import { Stack } from "expo-router";
+import { Stack, Redirect } from "expo-router";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { api } from "@/convex/_generated/api"; 
 import { useAppTheme } from "@/lib/theme";     
@@ -25,19 +25,26 @@ export default function AppLayout() {
   const hasProfile = profile !== null;
   const onboardingDone = hasProfile && profile.onboardingComplete === true;
   const isApproved = onboardingDone && (profile.applicationStatus ?? "approved") === "approved";
+  const hasRoute = isApproved && (profile.currentRoute?.length ?? 0) > 0;
 
-  // Three-state routing:
-  // 1. No profile OR onboarding incomplete → onboarding
-  // 2. Onboarding done + not approved → (pending) — profile-only, no tab bar
-  // 3. Approved → (tabs) — full access
-  const showOnboarding = !hasProfile || !onboardingDone;
-  const showPending = onboardingDone && !isApproved;
+  // Determine which route to show
+  let targetRoute = "/(tabs)";
+  if (!hasProfile || !onboardingDone) {
+    targetRoute = "/onboarding";
+  } else if (!isApproved) {
+    targetRoute = "/(pending)";
+  } else if (!hasRoute) {
+    targetRoute = "/(planning)";
+  }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      {showOnboarding && <Stack.Screen name="onboarding" options={{ headerShown: false }} />}
-      {showPending && <Stack.Screen name="(pending)" options={{ headerShown: false }} />}
-      {isApproved && <Stack.Screen name="(tabs)" options={{ headerShown: false }} />}
+    <>
+      <Redirect href={targetRoute as any} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+        <Stack.Screen name="(pending)" options={{ headerShown: false }} />
+        <Stack.Screen name="(planning)" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
       {/* Edit screens — available to both pending and approved users */}
       {hasProfile && onboardingDone && (
@@ -52,13 +59,14 @@ export default function AppLayout() {
       {hasProfile && onboardingDone && <Stack.Screen name="edit-photos" options={{ headerShown: false }} />}
       {hasProfile && onboardingDone && <Stack.Screen name="edit-van" options={{ headerShown: false }} />}
       {hasProfile && onboardingDone && <Stack.Screen name="edit-looking-for" options={{ headerShown: false }} />}
+      {isApproved && <Stack.Screen name="edit-route" options={{ headerShown: false }} />}
 
-      {/* Approved-only screens */}
+      {/* Approved-only screens (require tabs access) */}
       {isApproved && <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />}
       {isApproved && <Stack.Screen name="community/[id]" options={{ headerShown: false }} />}
       {isApproved && <Stack.Screen name="community/create" options={{ headerShown: false }} />}
-      {isApproved && <Stack.Screen name="profile/[id]" options={{ presentation: "modal" }} />}
-    </Stack>
+      </Stack>
+    </>
   );
 }
 

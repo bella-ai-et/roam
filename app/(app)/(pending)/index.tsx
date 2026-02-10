@@ -1,18 +1,16 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import ProfileScreenContent from "@/components/profile/ProfileScreenContent";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { useRouter, Href } from "expo-router";
 
 function PendingBanner() {
   const insets = useSafeAreaInsets();
   const { currentUser } = useCurrentUser();
   const approveWithInviteCode = useMutation(api.users.approveWithInviteCode);
-  const router = useRouter();
 
   const [isInputVisible, setInputVisible] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
@@ -33,14 +31,10 @@ function PendingBanner() {
         inviteCode: inviteCode.trim(),
       });
       console.log("Mutation success");
-      // Success! The layout will automatically redirect when the user document updates.
-      Alert.alert(
-        "Success", 
-        "Welcome aboard! Your account is now approved.",
-        // Cast to Href<string> to avoid strict type error since (tabs) is a virtual group
-        [{ text: "OK", onPress: () => router.replace("/(tabs)" as Href) }]
-      );
-      setSubmitting(false); // Stop spinner
+      // The 4-state router in (app)/_layout.tsx will automatically redirect:
+      // approved + no route → (planning) first-route setup screen
+      // approved + has route → (tabs) full access
+      setSubmitting(false);
     } catch (err) {
       console.error("Mutation failed:", err);
       setErrorMsg("Invalid invite code. Please try again.");

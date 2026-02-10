@@ -38,6 +38,8 @@ import {
   SWIPE_THRESHOLD,
 } from "@/lib/constants";
 import { hapticButtonPress } from "@/lib/haptics";
+import { useSubscription } from "@/hooks/useSubscription";
+import { Paywall } from "@/components/Paywall";
 
 type RouteMatch = {
   user: Doc<"users">;
@@ -161,6 +163,7 @@ export default function DiscoverScreen() {
   const [expanded, setExpanded] = useState(false);
   const [matchState, setMatchState] = useState<{ user: Doc<"users">; matchId: Id<"matches"> } | null>(null);
   const [applyingDemoRoute, setApplyingDemoRoute] = useState(false);
+  const [likesPaywallVisible, setLikesPaywallVisible] = useState(false);
   const translateX = useSharedValue(0);
   const isSwipingRef = useSharedValue(false);
   const activeMatchRef = useRef<RouteMatch | null>(null);
@@ -204,6 +207,12 @@ export default function DiscoverScreen() {
 
         if (result?.matched) {
           setMatchState({ user: match.user, matchId: result.matchId as Id<"matches"> });
+        }
+      } catch (err: any) {
+        if (err?.message?.includes("DAILY_LIKES_LIMIT")) {
+          // Reset card position and show paywall
+          translateX.value = withTiming(0, { duration: 200 });
+          setLikesPaywallVisible(true);
         }
       } finally {
         isSwipingRef.value = false;
@@ -495,6 +504,12 @@ export default function DiscoverScreen() {
         matchId={matchState?.matchId}
         onClose={() => setMatchState(null)}
       />
+      <Modal visible={likesPaywallVisible} animationType="slide" presentationStyle="pageSheet">
+        <Paywall
+          message="You've used all your free likes for today"
+          onClose={() => setLikesPaywallVisible(false)}
+        />
+      </Modal>
     </View>
   );
 }

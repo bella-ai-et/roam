@@ -53,8 +53,8 @@ export function JourneyTimeline({ stops, onAddStop }: JourneyTimelineProps) {
           onPress={onAddStop}
           style={[styles.addButton, { backgroundColor: `${AppColors.primary}15` }]}
         >
-          <Ionicons name="location" size={14} color={AppColors.primary} />
-          <Text style={[styles.addButtonText, { color: AppColors.primary }]}>ADD STOP</Text>
+          <Ionicons name="create-outline" size={14} color={AppColors.primary} />
+          <Text style={[styles.addButtonText, { color: AppColors.primary }]}>EDIT ROUTE</Text>
         </Pressable>
       </View>
 

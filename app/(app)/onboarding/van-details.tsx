@@ -46,7 +46,7 @@ export default function VanDetailsScreen() {
     setSaving(true);
     try {
       await updateProfile({ userId: currentUser._id, vanType, vanBuildStatus: buildStatus });
-      router.push("/(app)/onboarding/route");
+      router.push("/(app)/onboarding/complete");
     } catch {
       Alert.alert("Error", "Failed to save van details.");
     } finally {
@@ -81,7 +81,7 @@ export default function VanDetailsScreen() {
           { paddingTop: insets.top + 60, paddingBottom: 100 }
         ]}
       >
-        <ProgressBar current={6} total={9} />
+        <ProgressBar current={6} total={7} />
 
         {/* Van Type Section */}
         <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>

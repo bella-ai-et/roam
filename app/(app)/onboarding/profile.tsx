@@ -103,7 +103,6 @@ export default function ProfileScreen() {
           vanBuildStatus: undefined,
           vanVerified: false,
           vanPhotoUrl: undefined,
-          currentRoute: undefined,
         });
       }
       router.push("/(app)/onboarding/travel-styles" as never);
@@ -139,7 +138,7 @@ export default function ProfileScreen() {
           { paddingTop: insets.top + 60, paddingBottom: 100 }
         ]}
       >
-        <ProgressBar current={1} total={9} />
+        <ProgressBar current={1} total={7} />
 
         <View style={styles.section}>
           <GlassInput

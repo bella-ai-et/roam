@@ -32,6 +32,9 @@ export default defineSchema({
     lifestyleLabel: v.optional(v.string()),
     onboardingComplete: v.optional(v.boolean()),
     applicationStatus: v.optional(v.string()), // "pending" | "approved" | "rejected"
+    subscriptionTier: v.optional(v.string()), // "free" | "pro"
+    dailyLikesUsed: v.optional(v.number()),
+    dailyLikesResetAt: v.optional(v.number()),
   }).index("by_clerkId", ["clerkId"]), 
   swipes: defineTable({ 
     swiperId: v.id("users"), 
