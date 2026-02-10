@@ -80,7 +80,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     router: {},
     eas: {
-      projectId: '60c872ad-5c5d-4665-842c-fc50c7b37332',
+      projectId: '71f60535-5253-41bb-980a-ee11e181076c',
     },
   },
   owner: 'alexdesu',
