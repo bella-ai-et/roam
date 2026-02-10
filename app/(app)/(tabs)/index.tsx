@@ -443,6 +443,8 @@ export default function DiscoverScreen() {
           myRoute={currentUser?.currentRoute}
           overlaps={activeMatch.overlaps}
           theirName={activeMatch.user.name}
+          theirPhotoId={activeMatch.user.photos?.[0]}
+          myPhotoId={currentUser?.photos?.[0]}
         />
       </View>
     );
@@ -530,6 +532,8 @@ export default function DiscoverScreen() {
         myRoute={currentUser?.currentRoute}
         overlaps={activeMatch?.overlaps}
         theirName={activeMatch?.user.name}
+        theirPhotoId={activeMatch?.user.photos?.[0]}
+        myPhotoId={currentUser?.photos?.[0]}
       />
     </View>
   );

@@ -1,8 +1,15 @@
-import React, { useMemo, useState } from "react";
-import { View, Pressable, StyleSheet, Platform } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import React, { useMemo, useState, useEffect } from "react";
+import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useAppTheme, AppColors } from "@/lib/theme";
 import { MINI_MAP_SIZE } from "@/lib/constants";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  Easing,
+} from "react-native-reanimated";
 import {
   buildMapData,
   fitCameraToBounds,
@@ -48,6 +55,7 @@ function Placeholder({ surfaceColor }: { surfaceColor: string }) {
  * Small route map widget for the discovery card.
  * Shows a real GoogleMaps.View when route data is available and this is the top card.
  * Falls back to a placeholder visual otherwise.
+ * Features a pulsing glow border and frosted "Route" chip.
  */
 export function MiniRouteMap({ route, isTopCard = false, onExpand }: MiniRouteMapProps) {
   const { colors, isDark } = useAppTheme();
@@ -61,10 +69,39 @@ export function MiniRouteMap({ route, isTopCard = false, onExpand }: MiniRouteMa
 
   // Lazy-load: only resolve the native module when we actually need to render a map
   const GMaps = isTopCard && mapData && camera ? getGoogleMaps() : undefined;
+  const showRealMap = !!(GMaps && mapData && camera);
+
+  // Pulsing glow animation for the border
+  const glowOpacity = useSharedValue(0.4);
+  useEffect(() => {
+    if (showRealMap && onExpand) {
+      glowOpacity.value = withRepeat(
+        withTiming(1, { duration: 1800, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+    }
+  }, [showRealMap, !!onExpand]);
+
+  const glowStyle = useAnimatedStyle(() => ({
+    borderColor: `rgba(210,124,92,${glowOpacity.value * 0.7})`,
+    shadowOpacity: glowOpacity.value * 0.5,
+  }));
 
   return (
-    <View style={[styles.container, { borderColor: colors.surface }]}>
-      {GMaps && mapData && camera ? (
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          shadowColor: AppColors.primary,
+          shadowOffset: { width: 0, height: 0 },
+          shadowRadius: 8,
+          elevation: 6,
+        },
+        showRealMap && onExpand ? glowStyle : { borderColor: colors.surface },
+      ]}
+    >
+      {showRealMap ? (
         <MapErrorBoundary
           fallback={<Placeholder surfaceColor={colors.surfaceVariant} />}
         >
@@ -120,6 +157,15 @@ export function MiniRouteMap({ route, isTopCard = false, onExpand }: MiniRouteMa
               onMapLoaded={() => setMapLoaded(true)}
             />
           </View>
+
+          {/* Soft vignette overlay — gives a "window into the journey" feel */}
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <LinearGradient
+              colors={["rgba(0,0,0,0.15)", "transparent", "transparent", "rgba(0,0,0,0.2)"]}
+              locations={[0, 0.25, 0.7, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+          </View>
         </MapErrorBoundary>
       ) : (
         <Placeholder surfaceColor={colors.surfaceVariant} />
@@ -127,16 +173,14 @@ export function MiniRouteMap({ route, isTopCard = false, onExpand }: MiniRouteMa
 
       {/* Transparent overlay captures taps reliably — sits above the native map */}
       {onExpand && (
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={onExpand}
-        >
-          <View style={[styles.expandButton, { backgroundColor: "rgba(0,0,0,0.45)" }]}>
-            <Ionicons name="expand-outline" size={14} color="#fff" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onExpand}>
+          {/* Frosted "Route" chip — replaces generic expand icon */}
+          <View style={styles.routeChip}>
+            <Text style={styles.routeChipText}>Route ↗</Text>
           </View>
         </Pressable>
       )}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -180,11 +224,19 @@ const styles = StyleSheet.create({
     left: "60%",
     transform: [{ rotate: "-20deg" }],
   },
-  expandButton: {
+  routeChip: {
     position: "absolute",
-    bottom: 4,
-    right: 4,
-    padding: 4,
-    borderRadius: 6,
+    bottom: 6,
+    left: 6,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  routeChipText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
 });

@@ -3,6 +3,7 @@ export type { RouteMatch } from "./DiscoveryCard";
 export { JourneyStopsTimeline } from "./JourneyStopsTimeline";
 export type { JourneyStopItem, JourneyStopType } from "./JourneyStopsTimeline";
 export { MiniRouteMap } from "./MiniRouteMap";
+export { InlineRouteMap } from "./InlineRouteMap";
 export { PathsCrossBadge } from "./PathsCrossBadge";
 export { RouteComparisonModal } from "./RouteComparisonModal";
 export { buildJourneyStops } from "./discoveryUtils";

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,18 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  runOnJS,
+  Easing,
+} from "react-native-reanimated";
+import { useImage } from "expo-image";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { useAppTheme, AppColors } from "@/lib/theme";
 import { SCREEN_HEIGHT } from "@/lib/constants";
 import {
@@ -33,7 +45,7 @@ function getGoogleMaps(): typeof import("expo-maps").GoogleMaps | undefined {
   }
 }
 
-const MODAL_MAP_HEIGHT = SCREEN_HEIGHT * 0.6;
+const MODAL_MAP_HEIGHT = SCREEN_HEIGHT * 0.55;
 
 interface RouteComparisonModalProps {
   visible: boolean;
@@ -42,6 +54,16 @@ interface RouteComparisonModalProps {
   myRoute?: RouteStop[];
   overlaps?: Overlap[];
   theirName?: string;
+  theirPhotoId?: string;
+  myPhotoId?: string;
+}
+
+type HighlightedRoute = "their" | "my" | "overlap" | null;
+
+function isRemoteUrl(value?: string) {
+  if (!value) return false;
+  const t = value.trim();
+  return t.startsWith("http://") || t.startsWith("https://");
 }
 
 function formatDate(value: string) {
@@ -53,6 +75,18 @@ function formatDate(value: string) {
   }
 }
 
+/** Build a readable route story like "Dubai → Abu Dhabi → Liwa Oasis" */
+function buildRouteStory(route?: RouteStop[]): string {
+  if (!route || route.length === 0) return "";
+  const sorted = [...route].sort(
+    (a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime()
+  );
+  const names = sorted.map((s) => s.location.name).filter(Boolean);
+  // Deduplicate consecutive names
+  const deduped = names.filter((n, i) => i === 0 || n !== names[i - 1]);
+  return deduped.join("  →  ");
+}
+
 export function RouteComparisonModal({
   visible,
   onClose,
@@ -60,15 +94,83 @@ export function RouteComparisonModal({
   myRoute,
   overlaps,
   theirName,
+  theirPhotoId,
+  myPhotoId,
 }: RouteComparisonModalProps) {
   const { colors, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [highlighted, setHighlighted] = useState<HighlightedRoute>(null);
 
-  // Reset map loaded state when modal opens
-  const handleShow = useCallback(() => {
-    setMapLoaded(false);
-  }, []);
+  // ─── Resolve profile photos for custom markers ───
+  const theirPhotoNorm = theirPhotoId?.replace(/`/g, "").trim();
+  const theirPhotoRemote = isRemoteUrl(theirPhotoNorm);
+  const theirPhotoConvexUrl = useQuery(
+    api.files.getUrl,
+    theirPhotoRemote || !theirPhotoNorm ? "skip" : { storageId: theirPhotoNorm as Id<"_storage"> }
+  );
+  const theirPhotoUrl = theirPhotoRemote ? theirPhotoNorm : theirPhotoConvexUrl;
+
+  const myPhotoNorm = myPhotoId?.replace(/`/g, "").trim();
+  const myPhotoRemote = isRemoteUrl(myPhotoNorm);
+  const myPhotoConvexUrl = useQuery(
+    api.files.getUrl,
+    myPhotoRemote || !myPhotoNorm ? "skip" : { storageId: myPhotoNorm as Id<"_storage"> }
+  );
+  const myPhotoUrl = myPhotoRemote ? myPhotoNorm : myPhotoConvexUrl;
+
+  // Load profile photos as ImageRef for marker icons (expo-image caching)
+  const theirMarkerIcon = useImage(theirPhotoUrl ?? "", { maxWidth: 56, maxHeight: 56 });
+  const myMarkerIcon = useImage(myPhotoUrl ?? "", { maxWidth: 56, maxHeight: 56 });
+
+  // Animation shared values
+  const backdropOpacity = useSharedValue(0);
+  const sheetTranslateY = useSharedValue(SCREEN_HEIGHT);
+  const mapScale = useSharedValue(0.93);
+  const mapOpacity = useSharedValue(0);
+
+  // Animate in — fluid springs (higher damping, lower stiffness = smoother)
+  useEffect(() => {
+    if (visible) {
+      setModalVisible(true);
+      setMapLoaded(false);
+      setHighlighted(null);
+      // Stagger: backdrop → sheet → map
+      backdropOpacity.value = withTiming(1, { duration: 320 });
+      sheetTranslateY.value = withSpring(0, { damping: 28, stiffness: 140 });
+      // Map breathes in after sheet arrives
+      setTimeout(() => {
+        mapScale.value = withSpring(1, { damping: 24, stiffness: 130 });
+        mapOpacity.value = withTiming(1, { duration: 450, easing: Easing.out(Easing.ease) });
+      }, 120);
+    } else {
+      // Animate out — smooth ease
+      mapOpacity.value = withTiming(0, { duration: 200 });
+      mapScale.value = withTiming(0.93, { duration: 250 });
+      backdropOpacity.value = withTiming(0, { duration: 300 });
+      sheetTranslateY.value = withTiming(
+        SCREEN_HEIGHT,
+        { duration: 340, easing: Easing.in(Easing.ease) },
+        (finished) => {
+          if (finished) runOnJS(setModalVisible)(false);
+        }
+      );
+    }
+  }, [visible]);
+
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value,
+  }));
+
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: sheetTranslateY.value }],
+  }));
+
+  const mapAnimStyle = useAnimatedStyle(() => ({
+    opacity: mapOpacity.value,
+    transform: [{ scale: mapScale.value }],
+  }));
 
   const theirMapData = useMemo(
     () => (theirRoute ? buildMapData(theirRoute) : null),
@@ -80,6 +182,9 @@ export function RouteComparisonModal({
   );
 
   const overlap = overlaps?.[0];
+
+  // Route story text
+  const theirStory = useMemo(() => buildRouteStory(theirRoute), [theirRoute]);
 
   // Camera that fits both routes
   const camera = useMemo(() => {
@@ -101,7 +206,7 @@ export function RouteComparisonModal({
     [overlap]
   );
 
-  // Build polylines array
+  // Build polylines array — width changes based on legend highlight
   const polylines = useMemo(() => {
     const lines: {
       id: string;
@@ -115,7 +220,7 @@ export function RouteComparisonModal({
         id: "their-route",
         coordinates: theirMapData.polylineCoords,
         color: MAP_COLORS.theirRoute,
-        width: 4,
+        width: highlighted === "their" ? 8 : highlighted != null ? 3 : 5,
       });
     }
 
@@ -124,19 +229,22 @@ export function RouteComparisonModal({
         id: "my-route",
         coordinates: myMapData.polylineCoords,
         color: MAP_COLORS.myRoute,
-        width: 4,
+        width: highlighted === "my" ? 8 : highlighted != null ? 3 : 5,
       });
     }
 
     return lines;
-  }, [theirMapData, myMapData]);
+  }, [theirMapData, myMapData, highlighted]);
 
-  // Build markers array
+  // Build markers array — with profile photo icons + auto-show callouts
   const markers = useMemo(() => {
     const m: {
       id: string;
       coordinates: { latitude: number; longitude: number };
       title?: string;
+      snippet?: string;
+      showCallout?: boolean;
+      icon?: any;
     }[] = [];
 
     if (theirMapData) {
@@ -147,6 +255,9 @@ export function RouteComparisonModal({
           longitude: theirMapData.origin.longitude,
         },
         title: theirMapData.origin.name,
+        snippet: theirName ? `${theirName}'s start` : "Their start",
+        showCallout: true,
+        ...(theirMarkerIcon ? { icon: theirMarkerIcon } : {}),
       });
       m.push({
         id: "their-dest",
@@ -155,6 +266,8 @@ export function RouteComparisonModal({
           longitude: theirMapData.destination.longitude,
         },
         title: theirMapData.destination.name,
+        snippet: theirName ? `${theirName}'s destination` : "Their destination",
+        ...(theirMarkerIcon ? { icon: theirMarkerIcon } : {}),
       });
     }
 
@@ -166,6 +279,9 @@ export function RouteComparisonModal({
           longitude: myMapData.origin.longitude,
         },
         title: myMapData.origin.name,
+        snippet: "Your start",
+        showCallout: true,
+        ...(myMarkerIcon ? { icon: myMarkerIcon } : {}),
       });
       m.push({
         id: "my-dest",
@@ -174,13 +290,15 @@ export function RouteComparisonModal({
           longitude: myMapData.destination.longitude,
         },
         title: myMapData.destination.name,
+        snippet: "Your destination",
+        ...(myMarkerIcon ? { icon: myMarkerIcon } : {}),
       });
     }
 
     return m;
-  }, [theirMapData, myMapData]);
+  }, [theirMapData, myMapData, theirName, theirMarkerIcon, myMarkerIcon]);
 
-  // Build circles array
+  // Build circles array — with visible stroke for "paths cross" zone
   const circles = useMemo(() => {
     if (!overlapCenter || overlapRadius <= 0) return [];
     return [
@@ -188,37 +306,41 @@ export function RouteComparisonModal({
         id: "overlap-zone",
         center: overlapCenter,
         radius: overlapRadius,
-        color: MAP_COLORS.overlapFill,
+        color: highlighted === "overlap" ? "rgba(232,155,116,0.35)" : MAP_COLORS.overlapFill,
+        lineColor: MAP_COLORS.overlapStroke,
+        lineWidth: highlighted === "overlap" ? 4 : 2,
       },
     ];
-  }, [overlapCenter, overlapRadius]);
+  }, [overlapCenter, overlapRadius, highlighted]);
 
   const hasData = camera && (theirMapData || myMapData);
 
   // Lazy-load: only resolve native module when modal is visible and has data
-  const GMaps = visible && hasData ? getGoogleMaps() : undefined;
+  const GMaps = modalVisible && hasData ? getGoogleMaps() : undefined;
+
+  if (!modalVisible && !visible) return null;
 
   return (
     <Modal
-      visible={visible}
+      visible={modalVisible}
       transparent
-      animationType="slide"
-      onShow={handleShow}
+      animationType="none"
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <View style={styles.backdrop}>
-        {/* Tap backdrop to close */}
+      {/* Animated backdrop */}
+      <Animated.View style={[styles.backdrop, backdropStyle]}>
         <Pressable style={styles.backdropTouch} onPress={onClose} />
 
-        {/* Half-sheet */}
-        <View
+        {/* Animated half-sheet */}
+        <Animated.View
           style={[
             styles.sheet,
             {
               backgroundColor: isDark ? colors.surface : "#fff",
               paddingBottom: insets.bottom + 16,
             },
+            sheetStyle,
           ]}
         >
           {/* Handle bar */}
@@ -231,8 +353,23 @@ export function RouteComparisonModal({
             <Ionicons name="close" size={22} color={colors.onSurfaceVariant} />
           </Pressable>
 
-          {/* Map */}
-          <View style={styles.mapContainer}>
+          {/* Route story header */}
+          {theirStory ? (
+            <View style={styles.storyRow}>
+              <Text style={[styles.storyLabel, { color: colors.onSurfaceVariant }]}>
+                {theirName ? `${theirName.toUpperCase()}'S JOURNEY` : "THEIR JOURNEY"}
+              </Text>
+              <Text
+                style={[styles.storyText, { color: colors.onSurface }]}
+                numberOfLines={1}
+              >
+                {theirStory}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Animated map container */}
+          <Animated.View style={[styles.mapContainer, mapAnimStyle]}>
             {hasData && GMaps ? (
               <MapErrorBoundary
                 fallback={
@@ -298,33 +435,54 @@ export function RouteComparisonModal({
                 </Text>
               </View>
             )}
-          </View>
+          </Animated.View>
 
-          {/* Legend */}
+          {/* Interactive legend — tap to highlight corresponding route */}
           <View style={styles.legendRow}>
             {theirMapData && (
-              <View style={styles.legendItem}>
+              <Pressable
+                style={[
+                  styles.legendItem,
+                  highlighted === "their" && styles.legendItemActive,
+                  highlighted === "their" && { backgroundColor: `${MAP_COLORS.theirRoute}18` },
+                ]}
+                onPress={() => setHighlighted((h) => (h === "their" ? null : "their"))}
+              >
                 <View style={[styles.legendDot, { backgroundColor: MAP_COLORS.theirRoute }]} />
                 <Text style={[styles.legendLabel, { color: colors.onSurface }]}>
                   {theirName ? `${theirName}'s route` : "Their route"}
                 </Text>
-              </View>
+              </Pressable>
             )}
             {myMapData && (
-              <View style={styles.legendItem}>
+              <Pressable
+                style={[
+                  styles.legendItem,
+                  highlighted === "my" && styles.legendItemActive,
+                  highlighted === "my" && { backgroundColor: `${MAP_COLORS.myRoute}18` },
+                ]}
+                onPress={() => setHighlighted((h) => (h === "my" ? null : "my"))}
+              >
                 <View style={[styles.legendDot, { backgroundColor: MAP_COLORS.myRoute }]} />
                 <Text style={[styles.legendLabel, { color: colors.onSurface }]}>
                   Your route
                 </Text>
-              </View>
+              </Pressable>
             )}
             {overlap && overlapCenter && (
-              <View style={styles.legendItem}>
+              <Pressable
+                style={[
+                  styles.legendItem,
+                  highlighted === "overlap" && styles.legendItemActive,
+                  highlighted === "overlap" && { backgroundColor: `${AppColors.accentOrange}18` },
+                ]}
+                onPress={() => setHighlighted((h) => (h === "overlap" ? null : "overlap"))}
+              >
                 <View style={[styles.legendDot, { backgroundColor: AppColors.accentOrange }]} />
                 <Text style={[styles.legendLabel, { color: colors.onSurface }]}>
                   Paths cross
                 </Text>
-              </View>
+              </Pressable>
             )}
           </View>
 
@@ -343,8 +501,8 @@ export function RouteComparisonModal({
               </Text>
             </View>
           )}
-        </View>
-      </View>
+        </Animated.View>
+      </Animated.View>
     </Modal>
   );
 }
@@ -352,7 +510,7 @@ export function RouteComparisonModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "flex-end",
   },
   backdropTouch: {
@@ -366,7 +524,7 @@ const styles = StyleSheet.create({
   handleRow: {
     alignItems: "center",
     paddingTop: 12,
-    paddingBottom: 8,
+    paddingBottom: 4,
   },
   handle: {
     width: 36,
@@ -385,6 +543,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.08)",
+  },
+  storyRow: {
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+  },
+  storyLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    marginBottom: 4,
+  },
+  storyText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
   mapContainer: {
     width: "100%",
@@ -405,7 +577,7 @@ const styles = StyleSheet.create({
   legendRow: {
     flexDirection: "row",
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 14,
     paddingBottom: 4,
     gap: 20,
     flexWrap: "wrap",
@@ -414,6 +586,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  legendItemActive: {
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
   },
   legendDot: {
     width: 10,

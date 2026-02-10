@@ -24,6 +24,7 @@ import {
 } from "@/lib/constants";
 import { JourneyStopsTimeline } from "./JourneyStopsTimeline";
 import { MiniRouteMap } from "./MiniRouteMap";
+import { InlineRouteMap } from "./InlineRouteMap";
 import { PathsCrossBadge } from "./PathsCrossBadge";
 import { buildJourneyStops } from "./discoveryUtils";
 
@@ -493,6 +494,16 @@ export function ExpandedCard({ match, onCollapse, onLike, onReject, bottomInset 
         {journeyStops.length > 0 && (
           <View style={styles.section}>
             <JourneyStopsTimeline stops={journeyStops} />
+          </View>
+        )}
+
+        {/* ── Section: Route map ── */}
+        {user.currentRoute && user.currentRoute.length > 0 && (
+          <View style={styles.section}>
+            <InlineRouteMap
+              route={user.currentRoute}
+              onExpand={onExpandMap}
+            />
           </View>
         )}
 

@@ -169,23 +169,30 @@ export function getOverlapRadius(distanceKm: number): number {
 
 /* ─── Map style constants ─── */
 
-/** Heavily stripped style for the mini map widget (no roads, no POI) */
+/** Warm earthy style for the mini map widget (no roads, no POI — clean canvas) */
 export const MINI_MAP_STYLE = JSON.stringify([
   { featureType: "poi", stylers: [{ visibility: "off" }] },
   { featureType: "transit", stylers: [{ visibility: "off" }] },
   { featureType: "road", stylers: [{ visibility: "off" }] },
   { featureType: "administrative", elementType: "labels", stylers: [{ visibility: "off" }] },
-  { featureType: "water", stylers: [{ color: "#dce8e8" }] },
-  { featureType: "landscape", stylers: [{ color: "#f5f0eb" }] },
+  { featureType: "administrative.country", elementType: "geometry.stroke", stylers: [{ color: "#d4c5b5" }, { visibility: "on" }] },
+  { featureType: "water", stylers: [{ color: "#c8dbd5" }] },
+  { featureType: "landscape", stylers: [{ color: "#f5ede3" }] },
+  { featureType: "landscape.natural.terrain", stylers: [{ color: "#e8ddd0" }] },
 ]);
 
-/** Modal map style — roads visible, no POI */
+/** Warm earthy style for the modal map — roads visible, no POI */
 export const MODAL_MAP_STYLE = JSON.stringify([
   { featureType: "poi", stylers: [{ visibility: "off" }] },
   { featureType: "transit", stylers: [{ visibility: "off" }] },
-  { featureType: "road", elementType: "labels", stylers: [{ visibility: "simplified" }] },
-  { featureType: "water", stylers: [{ color: "#dce8e8" }] },
-  { featureType: "landscape", stylers: [{ color: "#f5f0eb" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#e8ddd0" }] },
+  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#9e8e7e" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#d4b5a0" }] },
+  { featureType: "administrative", elementType: "labels.text.fill", stylers: [{ color: "#9e8e7e" }] },
+  { featureType: "administrative.country", elementType: "geometry.stroke", stylers: [{ color: "#c4b5a5" }] },
+  { featureType: "water", stylers: [{ color: "#c8dbd5" }] },
+  { featureType: "landscape", stylers: [{ color: "#f5ede3" }] },
+  { featureType: "landscape.natural.terrain", stylers: [{ color: "#e8ddd0" }] },
 ]);
 
 /* ─── Color constants for map elements ─── */
