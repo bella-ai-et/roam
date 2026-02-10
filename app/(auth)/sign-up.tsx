@@ -11,16 +11,12 @@ export default function SignUpScreen() {
   const { isLoaded, signUp, setActive } = useSignUp();
   const router = useRouter();
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
   const [emailAddress, setEmailAddress] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [error, setError] = useState("");
 
-  const [firstNameFocused, setFirstNameFocused] = useState(false);
-  const [lastNameFocused, setLastNameFocused] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
@@ -31,8 +27,6 @@ export default function SignUpScreen() {
     setError("");
     try {
       await signUp.create({
-        firstName,
-        lastName,
         emailAddress,
         password,
       });
@@ -51,8 +45,6 @@ export default function SignUpScreen() {
   };
 
   const isFormValid = 
-    firstName.length > 0 && 
-    lastName.length > 0 && 
     emailAddress.length > 0 && 
     password.length >= 6;
 
@@ -89,48 +81,6 @@ export default function SignUpScreen() {
               <Text style={styles.errorText}>{error}</Text>
             </View>
           ) : null}
-
-          {/* First Name */}
-          <View style={[
-            styles.inputContainer,
-            firstNameFocused && styles.inputFocused
-          ]}>
-            <Ionicons 
-              name="person-outline" 
-              size={20} 
-              color={firstNameFocused ? AppColors.primary : "#666"} 
-            />
-            <TextInput
-              value={firstName}
-              placeholder="First Name"
-              placeholderTextColor="#666"
-              onChangeText={setFirstName}
-              onFocus={() => setFirstNameFocused(true)}
-              onBlur={() => setFirstNameFocused(false)}
-              style={styles.input}
-            />
-          </View>
-
-          {/* Last Name */}
-          <View style={[
-            styles.inputContainer,
-            lastNameFocused && styles.inputFocused
-          ]}>
-            <Ionicons 
-              name="person-outline" 
-              size={20} 
-              color={lastNameFocused ? AppColors.primary : "#666"} 
-            />
-            <TextInput
-              value={lastName}
-              placeholder="Last Name"
-              placeholderTextColor="#666"
-              onChangeText={setLastName}
-              onFocus={() => setLastNameFocused(true)}
-              onBlur={() => setLastNameFocused(false)}
-              style={styles.input}
-            />
-          </View>
 
           {/* Email */}
           <View style={[

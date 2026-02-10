@@ -1,13 +1,16 @@
-import { useRouter } from "expo-router";
 import React from "react";
-import { Text, View, StyleSheet, Pressable } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import { View, Text, StyleSheet, Pressable } from "react-native";
+import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppColors } from "@/lib/theme";
 
-export default function WelcomeScreen() {
-  const router = useRouter();
+interface WelcomeStepProps {
+  onNext: () => void;
+}
+
+export function WelcomeStep({ onNext }: WelcomeStepProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -18,29 +21,32 @@ export default function WelcomeScreen() {
     >
       <View style={styles.overlay} />
 
-      <View style={[styles.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
-        <Ionicons name="location" size={48} color="white" style={styles.icon} />
-        
-        <Text style={styles.title}>Roam</Text>
-        
-        <Text style={styles.subtitle}>
-          Find your people{"\n"}on the road
-        </Text>
+      <View style={[styles.content, { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 24 }]}>
+        <Animated.View entering={FadeIn.duration(600)}>
+          <Ionicons name="location" size={48} color="white" style={styles.icon} />
+        </Animated.View>
 
-        <View style={styles.featureList}>
+        <Animated.Text entering={FadeInDown.delay(200).duration(600)} style={styles.title}>
+          Roam
+        </Animated.Text>
+
+        <Animated.Text entering={FadeInDown.delay(400).duration(600)} style={styles.subtitle}>
+          Find your people{"\n"}on the road
+        </Animated.Text>
+
+        <Animated.View entering={FadeInDown.delay(600).duration(500)} style={styles.featureList}>
           <FeatureItem text="Match by overlapping travel routes" />
           <FeatureItem text="Connect with verified van lifers" />
           <FeatureItem text="Get help building your van" />
-        </View>
+        </Animated.View>
 
         <View style={styles.spacer} />
 
-        <Pressable
-          style={styles.button}
-          onPress={() => router.push("/(app)/onboarding/profile")}
-        >
-          <Text style={styles.buttonText}>Apply to Join</Text>
-        </Pressable>
+        <Animated.View entering={FadeInDown.delay(800).duration(500)} style={styles.buttonWrapper}>
+          <Pressable style={styles.button} onPress={onNext}>
+            <Text style={styles.buttonText}>Apply to Join</Text>
+          </Pressable>
+        </Animated.View>
       </View>
     </LinearGradient>
   );
@@ -101,6 +107,9 @@ const styles = StyleSheet.create({
   },
   spacer: {
     flex: 1,
+  },
+  buttonWrapper: {
+    width: "100%",
   },
   button: {
     backgroundColor: "white",

@@ -1,5 +1,5 @@
-import { Redirect } from "expo-router";
+import { Onboarding } from "@/components/onboarding/Onboarding";
 
 export default function OnboardingIndex() {
-  return <Redirect href="/(app)/onboarding/welcome" />;
+  return <Onboarding />;
 }

@@ -21,7 +21,7 @@ function normalizePhoto(value?: string) {
 
 interface ProfileHeaderProps {
   name: string;
-  vanVerified?: boolean;
+  isApproved?: boolean;
   vanModel?: string;
   vanType?: string;
   nomadSinceYear?: number;
@@ -31,7 +31,7 @@ interface ProfileHeaderProps {
 
 export function ProfileHeader({
   name,
-  vanVerified,
+  isApproved,
   vanModel,
   vanType,
   nomadSinceYear,
@@ -93,11 +93,11 @@ export function ProfileHeader({
       {/* Name + verified */}
       <View style={styles.nameRow}>
         <Text style={[styles.name, { color: colors.onBackground }]}>{name}</Text>
-        {vanVerified && (
+        {isApproved && (
           <Ionicons
             name="checkmark-circle"
             size={22}
-            color={AppColors.accentTeal}
+            color="#3797F0"
             style={styles.verifiedIcon}
           />
         )}

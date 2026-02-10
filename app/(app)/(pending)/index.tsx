@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator 
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import ProfileScreenContent from "@/components/profile/ProfileScreenContent";
+import { VanVerificationCard } from "@/components/profile/VanVerificationCard";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -110,7 +111,16 @@ function PendingBanner() {
 }
 
 export default function PendingScreen() {
-  return <ProfileScreenContent headerContent={<PendingBanner />} />;
+  return (
+    <ProfileScreenContent
+      headerContent={
+        <>
+          <PendingBanner />
+          <VanVerificationCard />
+        </>
+      }
+    />
+  );
 }
 
 const styles = StyleSheet.create({

@@ -151,7 +151,7 @@ export default function ProfileScreenContent({ headerContent }: ProfileScreenCon
           {/* Header: Avatar + Name + Subtitle */}
           <ProfileHeader
             name={displayName}
-            vanVerified={currentUser?.vanVerified}
+            isApproved={currentUser?.applicationStatus === "approved"}
             vanModel={(currentUser as any)?.vanModel}
             vanType={currentUser?.vanType}
             nomadSinceYear={(currentUser as any)?.nomadSinceYear}
