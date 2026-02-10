@@ -184,9 +184,11 @@ interface PreviewCardProps {
   onLike: () => void;
   onReject: () => void;
   onExpand: () => void;
+  isTopCard?: boolean;
+  onExpandMap?: () => void;
 }
 
-export function PreviewCard({ match, onLike, onReject, onExpand }: PreviewCardProps) {
+export function PreviewCard({ match, onLike, onReject, onExpand, isTopCard = false, onExpandMap }: PreviewCardProps) {
   const { colors } = useAppTheme();
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
@@ -231,11 +233,12 @@ export function PreviewCard({ match, onLike, onReject, onExpand }: PreviewCardPr
         </View>
       )}
 
-      {/* Mini map – top right (decorative / future map) */}
-      <View style={styles.miniMapWrap} pointerEvents="none">
+      {/* Mini map – top right */}
+      <View style={styles.miniMapWrap} pointerEvents="box-none">
         <MiniRouteMap
-          avatarStorageId={photos[0]}
-          avatarElement={<DiscoveryAvatar storageId={photos[0]} size={28} />}
+          route={user.currentRoute}
+          isTopCard={isTopCard}
+          onExpand={onExpandMap}
         />
       </View>
 
@@ -322,9 +325,10 @@ interface ExpandedCardProps {
   onLike: () => void;
   onReject: () => void;
   bottomInset?: number;
+  onExpandMap?: () => void;
 }
 
-export function ExpandedCard({ match, onCollapse, onLike, onReject, bottomInset = 0 }: ExpandedCardProps) {
+export function ExpandedCard({ match, onCollapse, onLike, onReject, bottomInset = 0, onExpandMap }: ExpandedCardProps) {
   const { colors, isDark } = useAppTheme();
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
@@ -402,11 +406,12 @@ export function ExpandedCard({ match, onCollapse, onLike, onReject, bottomInset 
               </View>
             )}
 
-            {/* Mini map – decorative + expand icon for future map */}
-            <View style={styles.miniMapWrap}>
+            {/* Mini map */}
+            <View style={styles.miniMapWrap} pointerEvents="box-none">
               <MiniRouteMap
-                avatarStorageId={photos[0]}
-                avatarElement={<DiscoveryAvatar storageId={photos[0]} size={24} />}
+                route={user.currentRoute}
+                isTopCard={true}
+                onExpand={onExpandMap}
               />
             </View>
 

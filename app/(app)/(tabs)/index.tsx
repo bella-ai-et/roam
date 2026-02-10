@@ -26,7 +26,7 @@ import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { api } from "@/convex/_generated/api";
 import { Doc, Id } from "@/convex/_generated/dataModel";
-import { ExpandedCard, PreviewCard } from "@/components/discovery";
+import { ExpandedCard, PreviewCard, RouteComparisonModal } from "@/components/discovery";
 import { GlassButton } from "@/components/glass";
 import { AppColors, useAppTheme } from "@/lib/theme";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -164,6 +164,7 @@ export default function DiscoverScreen() {
   const [matchState, setMatchState] = useState<{ user: Doc<"users">; matchId: Id<"matches"> } | null>(null);
   const [applyingDemoRoute, setApplyingDemoRoute] = useState(false);
   const [likesPaywallVisible, setLikesPaywallVisible] = useState(false);
+  const [mapModalVisible, setMapModalVisible] = useState(false);
   const translateX = useSharedValue(0);
   const isSwipingRef = useSharedValue(false);
   const activeMatchRef = useRef<RouteMatch | null>(null);
@@ -297,9 +298,10 @@ export default function DiscoverScreen() {
   const tabBarHeight = (Platform.OS === "android" ? 64 : 56) + insets.bottom;
 
   // ─── Pan gesture ───
-  // No activeOffsetX/failOffsetY — photo browsing now uses tap zones (no horizontal scroll conflict).
-  // The entire card surface is swipeable. Card tilts as you drag = clear visual feedback.
+  // activeOffsetX: don't claim the touch until 15px of horizontal movement.
+  // This lets taps (map widget, photo zones, info area) register cleanly.
   const panGesture = Gesture.Pan()
+    .activeOffsetX([-15, 15])
     .onUpdate((event) => {
       if (!isSwipingRef.value) {
         translateX.value = event.translationX;
@@ -425,6 +427,7 @@ export default function DiscoverScreen() {
             onLike={() => triggerSwipe("like")}
             onReject={() => triggerSwipe("reject")}
             bottomInset={0}
+            onExpandMap={() => setMapModalVisible(true)}
           />
         </View>
         <MatchCelebration
@@ -432,6 +435,14 @@ export default function DiscoverScreen() {
           matchedUser={matchState?.user}
           matchId={matchState?.matchId}
           onClose={() => setMatchState(null)}
+        />
+        <RouteComparisonModal
+          visible={mapModalVisible}
+          onClose={() => setMapModalVisible(false)}
+          theirRoute={activeMatch.user.currentRoute}
+          myRoute={currentUser?.currentRoute}
+          overlaps={activeMatch.overlaps}
+          theirName={activeMatch.user.name}
         />
       </View>
     );
@@ -465,6 +476,8 @@ export default function DiscoverScreen() {
                         onExpand={() => setExpanded(true)}
                         onLike={() => triggerSwipe("like")}
                         onReject={() => triggerSwipe("reject")}
+                        isTopCard={true}
+                        onExpandMap={() => setMapModalVisible(true)}
                       />
                       {/* LIKE overlay badge */}
                       <Animated.View style={[styles.overlayBadge, styles.likeBadge, likeOverlayStyle]}>
@@ -510,6 +523,14 @@ export default function DiscoverScreen() {
           onClose={() => setLikesPaywallVisible(false)}
         />
       </Modal>
+      <RouteComparisonModal
+        visible={mapModalVisible}
+        onClose={() => setMapModalVisible(false)}
+        theirRoute={activeMatch?.user.currentRoute}
+        myRoute={currentUser?.currentRoute}
+        overlaps={activeMatch?.overlaps}
+        theirName={activeMatch?.user.name}
+      />
     </View>
   );
 }

@@ -1,5 +1,7 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
 
+const hasGoogleMapsKey = !!process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'Zelani',
@@ -33,11 +35,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'android.permission.WRITE_EXTERNAL_STORAGE',
     ],
     package: 'com.abeldesu.zelani',
-    config: {
-      googleMaps: {
-        apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
+    ...(hasGoogleMapsKey && {
+      config: {
+        googleMaps: {
+          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
+        },
       },
-    },
+    }),
   },
   plugins: [
     'expo-router',
@@ -66,12 +70,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-font',
     'expo-image',
     'expo-web-browser',
-    [
-      'expo-maps',
-      {
-        requestLocationPermission: true,
-      },
-    ],
+    ...(hasGoogleMapsKey
+      ? ([[
+            'expo-maps',
+            { requestLocationPermission: true },
+          ]] as [string, any][])
+      : []),
   ],
   experiments: {
     typedRoutes: true,
