@@ -1,228 +1,363 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  TextInput,
+  ActivityIndicator,
+} from "react-native";
+import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAppTheme } from "@/lib/theme";
 import ProfileScreenContent from "@/components/profile/ProfileScreenContent";
 import { VanVerificationCard } from "@/components/profile/VanVerificationCard";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
-function PendingBanner() {
-  const insets = useSafeAreaInsets();
+/* ─── Status banner (thin, neutral) ─── */
+function StatusBanner({ isDark }: { isDark: boolean }) {
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(100).duration(400)}
+      style={[styles.statusBanner, isDark && styles.statusBannerDark]}
+    >
+      <View style={[styles.statusDot, { backgroundColor: "#F5A623" }]} />
+      <Text style={[styles.statusText, isDark && styles.statusTextDark]}>
+        Your application is under review — you can edit your profile while you wait
+      </Text>
+    </Animated.View>
+  );
+}
+
+/* ─── Invite Code Card (indigo "unlock" theme) ─── */
+function InviteCodeCard() {
   const { currentUser } = useCurrentUser();
+  const { isDark } = useAppTheme();
   const approveWithInviteCode = useMutation(api.users.approveWithInviteCode);
 
-  const [isInputVisible, setInputVisible] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
   const [isSubmitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleSubmit = async () => {
-    if (!inviteCode.trim()) return;
-    if (!currentUser?._id) return;
-
+    if (!inviteCode.trim() || !currentUser?._id) return;
     setSubmitting(true);
     setErrorMsg(null);
-
     try {
-      console.log("Submitting invite code:", inviteCode.trim());
       await approveWithInviteCode({
         userId: currentUser._id,
         inviteCode: inviteCode.trim(),
       });
-      console.log("Mutation success");
-      // The 4-state router in (app)/_layout.tsx will automatically redirect:
-      // approved + no route → (planning) first-route setup screen
-      // approved + has route → (tabs) full access
       setSubmitting(false);
-    } catch (err) {
-      console.error("Mutation failed:", err);
+    } catch {
       setErrorMsg("Invalid invite code. Please try again.");
       setSubmitting(false);
     }
   };
 
   return (
-    <View style={[styles.banner, { marginTop: insets.top > 0 ? 0 : 8 }]}>
-      <View style={styles.topRow}>
-        <View style={styles.bannerIcon}>
-          <Ionicons name="hourglass-outline" size={18} color="#B8860B" />
-        </View>
-        <View style={styles.bannerTextContainer}>
-          <Text style={styles.bannerTitle}>Application under review</Text>
-          <Text style={styles.bannerSubtitle}>
-            You can view and edit your profile while we review your application.
-          </Text>
-        </View>
+    <Animated.View
+      entering={FadeInDown.delay(200).duration(500).springify().damping(18)}
+      style={[styles.card, isDark ? styles.cardDark : styles.inviteCardLight]}
+    >
+      {/* Icon badge */}
+      <View style={[styles.iconBadge, styles.inviteIconBg]}>
+        <Ionicons name="key-outline" size={22} color="#6C5CE7" />
       </View>
 
-      {!isInputVisible ? (
-        <TouchableOpacity 
-          style={styles.inviteLinkButton} 
-          onPress={() => setInputVisible(true)}
+      <Text style={[styles.cardTitle, isDark && styles.cardTitleDark]}>
+        Unlock Your Profile
+      </Text>
+      <Text style={[styles.cardDescription, isDark && styles.cardDescDark]}>
+        Got an invite code from a friend? Skip the wait and get instant access.
+      </Text>
+
+      {!expanded ? (
+        <Pressable
+          style={[styles.ctaButton, styles.inviteCta]}
+          onPress={() => setExpanded(true)}
         >
-          <Text style={styles.inviteLinkText}>Have an invite code?</Text>
-        </TouchableOpacity>
+          <Ionicons name="sparkles" size={16} color="#fff" />
+          <Text style={styles.ctaText}>Enter Invite Code</Text>
+        </Pressable>
       ) : (
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={[styles.input, errorMsg ? styles.inputError : null]}
-            placeholder="Enter invite code"
-            placeholderTextColor="rgba(232, 146, 74, 0.5)"
-            value={inviteCode}
-            onChangeText={(text) => {
-              setInviteCode(text);
-              if (errorMsg) setErrorMsg(null);
-            }}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <View style={styles.actionButtons}>
-            <TouchableOpacity 
-              style={styles.cancelButton}
+        <Animated.View entering={FadeIn.duration(300)} style={styles.inputArea}>
+          <View
+            style={[
+              styles.inputWrap,
+              isDark && styles.inputWrapDark,
+              errorMsg && styles.inputWrapError,
+            ]}
+          >
+            <Ionicons
+              name="key-outline"
+              size={16}
+              color={errorMsg ? "#E74C3C" : "#6C5CE7"}
+              style={{ marginRight: 8 }}
+            />
+            <TextInput
+              style={[styles.input, isDark && styles.inputDark]}
+              placeholder="Paste your code here"
+              placeholderTextColor={isDark ? "#666" : "#B0AEC1"}
+              value={inviteCode}
+              onChangeText={(t) => {
+                setInviteCode(t);
+                if (errorMsg) setErrorMsg(null);
+              }}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoFocus
+              returnKeyType="go"
+              onSubmitEditing={handleSubmit}
+            />
+          </View>
+
+          {errorMsg && (
+            <Animated.Text entering={FadeIn.duration(200)} style={styles.errorText}>
+              {errorMsg}
+            </Animated.Text>
+          )}
+
+          <View style={styles.inputActions}>
+            <Pressable
+              style={styles.cancelBtn}
               onPress={() => {
-                setInputVisible(false);
+                setExpanded(false);
                 setInviteCode("");
                 setErrorMsg(null);
               }}
               disabled={isSubmitting}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.submitButton}
+              <Text style={[styles.cancelText, isDark && { color: "#888" }]}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.submitBtn,
+                styles.inviteSubmitBg,
+                (!inviteCode.trim() || isSubmitting) && styles.submitBtnDisabled,
+              ]}
               onPress={handleSubmit}
               disabled={isSubmitting || !inviteCode.trim()}
             >
               {isSubmitting ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.submitButtonText}>Submit</Text>
+                <Text style={styles.submitText}>Unlock</Text>
               )}
-            </TouchableOpacity>
+            </Pressable>
           </View>
-        </View>
+        </Animated.View>
       )}
-      
-      {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
-    </View>
+    </Animated.View>
   );
 }
 
 export default function PendingScreen() {
+  const { isDark } = useAppTheme();
+
   return (
     <ProfileScreenContent
       headerContent={
-        <>
-          <PendingBanner />
+        <View style={styles.headerContent}>
+          <StatusBanner isDark={isDark} />
+          <InviteCodeCard />
           <VanVerificationCard />
-        </>
+        </View>
       }
     />
   );
 }
 
+/* ─── Styles ─── */
 const styles = StyleSheet.create({
-  banner: {
-    marginHorizontal: 16,
-    marginBottom: 8,
+  headerContent: {
+    gap: 14,
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 14,
-    backgroundColor: "rgba(232, 146, 74, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(232, 146, 74, 0.25)",
-    gap: 12,
+    paddingBottom: 8,
   },
-  topRow: {
+
+  /* Status banner */
+  statusBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "#FFF9F0",
+    borderWidth: 1,
+    borderColor: "#F5DEB3",
   },
-  bannerIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(232, 146, 74, 0.18)",
+  statusBannerDark: {
+    backgroundColor: "rgba(245,166,35,0.08)",
+    borderColor: "rgba(245,166,35,0.18)",
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#8B7355",
+    fontWeight: "500",
+  },
+  statusTextDark: {
+    color: "#C4A265",
+  },
+
+  /* Shared card base */
+  card: {
+    borderRadius: 20,
+    padding: 24,
+    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  cardDark: {
+    backgroundColor: "#1E1E1E",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  inviteCardLight: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#F0EEF9",
+  },
+
+  /* Icon badge */
+  iconBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 4,
   },
-  bannerTextContainer: {
-    flex: 1,
+  inviteIconBg: {
+    backgroundColor: "#EDE9FE",
   },
-  bannerTitle: {
+
+  /* Card text */
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1A1A2E",
+    letterSpacing: -0.3,
+  },
+  cardTitleDark: {
+    color: "#F0EDE8",
+  },
+  cardDescription: {
     fontSize: 14,
-    fontWeight: "700",
-    color: "#E8924A",
-    marginBottom: 2,
+    lineHeight: 21,
+    color: "#6B6580",
+    fontWeight: "400",
   },
-  bannerSubtitle: {
-    fontSize: 12,
-    color: "#C4813F",
-    lineHeight: 17,
+  cardDescDark: {
+    color: "#9E9AA8",
   },
-  inviteLinkButton: {
-    alignSelf: "flex-start",
-    paddingVertical: 4,
-  },
-  inviteLinkText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#E8924A",
-    textDecorationLine: "underline",
-  },
-  inputContainer: {
+
+  /* CTA button */
+  ctaButton: {
     flexDirection: "row",
-    gap: 8,
     alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    height: 48,
+    borderRadius: 14,
     marginTop: 4,
+  },
+  inviteCta: {
+    backgroundColor: "#6C5CE7",
+  },
+  ctaText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+
+  /* Input area */
+  inputArea: {
+    gap: 12,
+    marginTop: 4,
+  },
+  inputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#E0DCEF",
+    backgroundColor: "#FAFAFF",
+    paddingHorizontal: 14,
+  },
+  inputWrapDark: {
+    backgroundColor: "rgba(108,92,231,0.06)",
+    borderColor: "rgba(108,92,231,0.2)",
+  },
+  inputWrapError: {
+    borderColor: "#E74C3C",
+    backgroundColor: "rgba(231,76,60,0.04)",
   },
   input: {
     flex: 1,
-    height: 36,
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    fontSize: 14,
-    color: "#5D4037",
-    borderWidth: 1,
-    borderColor: "rgba(232, 146, 74, 0.3)",
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#1A1A2E",
   },
-  inputError: {
-    borderColor: "#D32F2F",
-    backgroundColor: "rgba(211, 47, 47, 0.05)",
-  },
-  actionButtons: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  submitButton: {
-    backgroundColor: "#E8924A",
-    height: 36,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  submitButtonText: {
-    color: "#FFF",
-    fontWeight: "600",
-    fontSize: 13,
-  },
-  cancelButton: {
-    height: 36,
-    paddingHorizontal: 8,
-    justifyContent: "center",
-  },
-  cancelButtonText: {
-    color: "#C4813F",
-    fontSize: 13,
+  inputDark: {
+    color: "#F0EDE8",
   },
   errorText: {
     fontSize: 12,
-    color: "#D32F2F",
+    color: "#E74C3C",
+    fontWeight: "500",
     marginTop: -4,
     marginLeft: 4,
+  },
+  inputActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  cancelBtn: {
+    height: 44,
+    paddingHorizontal: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 12,
+  },
+  cancelText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#8B8598",
+  },
+  submitBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inviteSubmitBg: {
+    backgroundColor: "#6C5CE7",
+  },
+  submitBtnDisabled: {
+    opacity: 0.45,
+  },
+  submitText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
   },
 });
