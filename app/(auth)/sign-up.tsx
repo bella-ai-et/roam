@@ -1,11 +1,38 @@
 import { useSignUp } from "@clerk/clerk-expo";
 import { Link, useRouter } from "expo-router";
 import { Text, View, StyleSheet, TextInput, Pressable, KeyboardAvoidingView, Platform } from "react-native";
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
+import Animated, { FadeIn, FadeOut, useSharedValue, useAnimatedStyle, withSequence, withTiming } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { GlassButton } from "@/components/glass";
 import { AppColors } from "@/lib/theme";
+import { hapticError } from "@/lib/haptics";
+
+/** Map Clerk error codes to friendly user-facing messages */
+function friendlySignUpError(err: any): { message: string; field?: "email" | "password" } {
+  const code = err.errors?.[0]?.code;
+  const param = err.errors?.[0]?.meta?.paramName;
+
+  switch (code) {
+    case "form_identifier_exists":
+      return { message: "This email is already registered. Try signing in instead.", field: "email" };
+    case "form_param_format_invalid":
+      if (param === "email_address")
+        return { message: "Please enter a valid email address.", field: "email" };
+      return { message: "Please check your input and try again." };
+    case "form_password_pwned":
+      return { message: "This password has been found in a data breach. Please choose a different one.", field: "password" };
+    case "form_password_length_too_short":
+      return { message: "Password is too short. Use at least 8 characters.", field: "password" };
+    case "form_password_not_strong_enough":
+      return { message: "Password is too weak. Try mixing letters, numbers, and symbols.", field: "password" };
+    case "too_many_attempts":
+      return { message: "Too many attempts. Please wait a moment and try again." };
+    default:
+      return { message: err.errors?.[0]?.longMessage || err.errors?.[0]?.message || "Something went wrong. Please try again." };
+  }
+}
 
 export default function SignUpScreen() {
   const { isLoaded, signUp, setActive } = useSignUp();
@@ -16,15 +43,35 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [error, setError] = useState("");
+  const [errorField, setErrorField] = useState<"email" | "password" | undefined>();
 
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
+  // Shake animation
+  const shakeX = useSharedValue(0);
+  const shakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeX.value }],
+  }));
+  const triggerShake = useCallback(() => {
+    shakeX.value = withSequence(
+      withTiming(-8, { duration: 50 }),
+      withTiming(8, { duration: 50 }),
+      withTiming(-6, { duration: 50 }),
+      withTiming(6, { duration: 50 }),
+      withTiming(0, { duration: 50 }),
+    );
+  }, [shakeX]);
+
+  const clearError = useCallback(() => {
+    if (error) { setError(""); setErrorField(undefined); }
+  }, [error]);
+
   const onSignUpPress = async () => {
     if (!isLoaded) return;
-    
+
     setIsSigningUp(true);
-    setError("");
+    clearError();
     try {
       await signUp.create({
         emailAddress,
@@ -33,19 +80,17 @@ export default function SignUpScreen() {
       await setActive({ session: signUp.createdSessionId });
     } catch (err: any) {
       console.error(JSON.stringify(err, null, 2));
-      const message = err.errors?.[0]?.message || "Failed to sign up";
-      // Handle "email taken" error specifically
-      if (err.errors?.[0]?.code === "form_identifier_exists") {
-        setError("This email is already registered. Try signing in instead.");
-      } else {
-        setError(message);
-      }
+      const { message, field } = friendlySignUpError(err);
+      setError(message);
+      setErrorField(field);
+      hapticError();
+      triggerShake();
       setIsSigningUp(false);
     }
   };
 
-  const isFormValid = 
-    emailAddress.length > 0 && 
+  const isFormValid =
+    emailAddress.length > 0 &&
     password.length >= 6;
 
   return (
@@ -76,28 +121,39 @@ export default function SignUpScreen() {
         {/* Form */}
         <View style={styles.form}>
           {error ? (
-            <View style={styles.errorContainer}>
-              <Ionicons name="alert-circle-outline" size={20} color="#FF3B30" />
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
+            <Animated.View
+              entering={FadeIn.duration(250)}
+              exiting={FadeOut.duration(200)}
+              style={styles.errorContainer}
+            >
+              <Animated.View style={shakeStyle}>
+                <View style={styles.errorInner}>
+                  <View style={styles.errorIconCircle}>
+                    <Ionicons name="close" size={14} color="#fff" />
+                  </View>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              </Animated.View>
+            </Animated.View>
           ) : null}
 
           {/* Email */}
           <View style={[
             styles.inputContainer,
-            emailFocused && styles.inputFocused
+            emailFocused && styles.inputFocused,
+            errorField === "email" && styles.inputError,
           ]}>
             <Ionicons 
               name="mail-outline" 
               size={20} 
-              color={emailFocused ? AppColors.primary : "#666"} 
+              color={errorField === "email" ? "#E74C3C" : emailFocused ? AppColors.primary : "#666"} 
             />
             <TextInput
               autoCapitalize="none"
               value={emailAddress}
               placeholder="Email"
               placeholderTextColor="#666"
-              onChangeText={setEmailAddress}
+              onChangeText={(t) => { setEmailAddress(t); clearError(); }}
               onFocus={() => setEmailFocused(true)}
               onBlur={() => setEmailFocused(false)}
               style={styles.input}
@@ -107,19 +163,20 @@ export default function SignUpScreen() {
           {/* Password */}
           <View style={[
             styles.inputContainer,
-            passwordFocused && styles.inputFocused
+            passwordFocused && styles.inputFocused,
+            errorField === "password" && styles.inputError,
           ]}>
             <Ionicons 
               name="lock-closed-outline" 
               size={20} 
-              color={passwordFocused ? AppColors.primary : "#666"} 
+              color={errorField === "password" ? "#E74C3C" : passwordFocused ? AppColors.primary : "#666"} 
             />
             <TextInput
               value={password}
               placeholder="Password"
               placeholderTextColor="#666"
               secureTextEntry={!showPassword}
-              onChangeText={setPassword}
+              onChangeText={(t) => { setPassword(t); clearError(); }}
               onFocus={() => setPasswordFocused(true)}
               onBlur={() => setPasswordFocused(false)}
               style={styles.input}
@@ -132,8 +189,8 @@ export default function SignUpScreen() {
               />
             </Pressable>
           </View>
-          {password.length > 0 && password.length < 6 && (
-            <Text style={{ color: "#FF3B30", fontSize: 12, marginLeft: 16, marginTop: -8 }}>
+          {password.length > 0 && password.length < 6 && !error && (
+            <Text style={styles.passwordHint}>
               Password must be at least 6 characters
             </Text>
           )}
@@ -201,17 +258,40 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   errorContainer: {
+    overflow: "hidden",
+    borderRadius: 14,
+  },
+  errorInner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,59,48,0.1)",
-    padding: 12,
+    backgroundColor: "rgba(231,76,60,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(231,76,60,0.2)",
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    gap: 10,
+  },
+  errorIconCircle: {
+    width: 24,
+    height: 24,
     borderRadius: 12,
-    gap: 8,
+    backgroundColor: "#E74C3C",
+    alignItems: "center",
+    justifyContent: "center",
   },
   errorText: {
-    color: "#FF3B30",
+    color: "#F8A9A0",
     fontSize: 14,
+    fontWeight: "500",
     flex: 1,
+    lineHeight: 20,
+  },
+  passwordHint: {
+    color: "#F8A9A0",
+    fontSize: 12,
+    marginLeft: 16,
+    marginTop: -8,
   },
   inputContainer: {
     height: 56,
@@ -227,6 +307,10 @@ const styles = StyleSheet.create({
   inputFocused: {
     borderColor: AppColors.primary,
     backgroundColor: "rgba(210,124,92,0.08)",
+  },
+  inputError: {
+    borderColor: "rgba(231,76,60,0.6)",
+    backgroundColor: "rgba(231,76,60,0.06)",
   },
   input: {
     flex: 1,
