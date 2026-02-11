@@ -5,17 +5,14 @@ import {
   StyleSheet,
   Pressable,
   ActivityIndicator,
-  ScrollView,
   Alert,
-  Dimensions,
 } from "react-native";
+import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppTheme, AppColors } from "@/lib/theme";
+import { AppColors } from "@/lib/theme";
 import { useSubscription } from "@/hooks/useSubscription";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 interface PaywallProps {
   onClose: () => void;
@@ -23,22 +20,20 @@ interface PaywallProps {
   message?: string;
 }
 
-/* ── Premium gold accent for Pro elements ── */
+/* ── Gold accent ── */
 const GOLD = "#D4A04A";
-const GOLD_LIGHT = "#F5E6C8";
 const GOLD_DARK = "#B8882E";
 
-/* ── Comparison data ── */
-const COMPARISON_ROWS = [
-  { label: "Daily likes", free: "5", pro: "Unlimited", icon: "heart" as const },
-  { label: "Route planning", free: "1–2 weeks", pro: "Up to 6 months", icon: "calendar" as const },
-  { label: "Stops per route", free: "1–2", pro: "Unlimited", icon: "location" as const },
-  { label: "Routes", free: "1 route", pro: "Unlimited", icon: "map" as const },
-  { label: "Profile boost", free: "—", pro: "✓", icon: "trending-up" as const },
+/* ── Feature rows ── */
+const FEATURES: { label: string; free: string | null; pro: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { label: "Daily likes", free: "5 per day", pro: "Unlimited", icon: "heart-outline" },
+  { label: "Route stops", free: "1–2 stops", pro: "Unlimited", icon: "navigate-outline" },
+  { label: "Route planning", free: "2 weeks ahead", pro: "6 months ahead", icon: "calendar-outline" },
+  { label: "Saved routes", free: "1 route", pro: "Unlimited", icon: "map-outline" },
+  { label: "Profile boost", free: null, pro: "Priority visibility", icon: "trending-up-outline" },
 ];
 
 export function Paywall({ onClose, message }: PaywallProps) {
-  const { colors, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { offerings, purchasePackage, restorePurchases, loading } = useSubscription();
   const [purchasing, setPurchasing] = useState(false);
@@ -87,269 +82,170 @@ export function Paywall({ onClose, message }: PaywallProps) {
     }
   };
 
-  const cardBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.03)";
-  const borderSubtle = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
-  const proHighlight = isDark ? "rgba(212,160,74,0.12)" : "rgba(212,160,74,0.08)";
-
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Close button */}
+    <LinearGradient
+      colors={[AppColors.background.dark, "#1A1510", AppColors.background.dark]}
+      style={styles.container}
+    >
+      {/* Warm glow — same as sign-in */}
+      <View style={styles.glow} />
+
+      {/* Close */}
       <Pressable
         onPress={onClose}
         style={[styles.closeButton, { top: insets.top + 12 }]}
         hitSlop={16}
       >
-        <View style={[styles.closeCircle, { backgroundColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)" }]}>
-          <Ionicons name="close" size={22} color={colors.onSurface} />
+        <View style={styles.closeCircle}>
+          <Ionicons name="close" size={20} color="#999" />
         </View>
       </Pressable>
 
-      <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 32 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── Hero Section ── */}
-        <LinearGradient
-          colors={isDark
-            ? ["rgba(212,160,74,0.15)", "rgba(210,124,92,0.10)", "transparent"]
-            : ["rgba(212,160,74,0.18)", "rgba(210,124,92,0.08)", "transparent"]
-          }
-          style={[styles.hero, { paddingTop: insets.top + 56 }]}
-        >
-          {/* Route illustration */}
-          <View style={styles.routeIllustration}>
-            <View style={styles.routeDots}>
-              <View style={[styles.routeDot, { backgroundColor: colors.onSurfaceVariant }]} />
-              <View style={[styles.routeLine, { backgroundColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.10)" }]} />
-              <View style={[styles.routeDot, { backgroundColor: colors.onSurfaceVariant }]} />
-              <View style={[styles.routeLine, { backgroundColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.10)" }]} />
-              <View style={[styles.routeDotPro, { backgroundColor: GOLD }]}>
-                <Ionicons name="star" size={10} color="#fff" />
-              </View>
-              <View style={[styles.routeLinePro, { backgroundColor: GOLD }]} />
-              <View style={[styles.routeDotPro, { backgroundColor: GOLD }]}>
-                <Ionicons name="star" size={10} color="#fff" />
-              </View>
-              <View style={[styles.routeLinePro, { backgroundColor: GOLD }]} />
-              <View style={[styles.routeDotPro, { backgroundColor: GOLD }]}>
-                <Ionicons name="star" size={10} color="#fff" />
-              </View>
-            </View>
-            <View style={styles.routeLabels}>
-              <Text style={[styles.routeLabelFree, { color: colors.onSurfaceVariant }]}>Free</Text>
-              <Text style={[styles.routeLabelPro, { color: GOLD }]}>Pro</Text>
-            </View>
-          </View>
+      {/* Content — vertically centred, no scroll needed */}
+      <View style={[styles.content, { paddingTop: insets.top + 56, paddingBottom: insets.bottom + 24 }]}>
 
-          {/* Pro badge */}
-          <View style={[styles.proBadge, { backgroundColor: GOLD }]}>
-            <Ionicons name="diamond" size={16} color="#fff" />
-            <Text style={styles.proBadgeText}>PRO</Text>
-          </View>
+        {/* ─── Hero ─── */}
+        <Animated.View entering={FadeInDown.delay(100).duration(500)} style={styles.heroSection}>
+          {/* Diamond icon */}
+          <LinearGradient
+            colors={[GOLD, GOLD_DARK]}
+            style={styles.iconBadge}
+          >
+            <Ionicons name="diamond" size={28} color="#fff" />
+          </LinearGradient>
 
-          <Text style={[styles.heroTitle, { color: colors.onSurface }]}>
-            Go further.{"\n"}Match more.
+          <Text style={styles.heroTitle}>Zelani Pro</Text>
+          <Text style={styles.heroSubtitle}>
+            {message || "Unlock the full experience — go further, match more."}
           </Text>
+        </Animated.View>
 
-          {message ? (
-            <View style={[styles.limitBanner, { backgroundColor: isDark ? "rgba(232,155,116,0.15)" : "rgba(232,155,116,0.12)" }]}>
-              <Ionicons name="alert-circle" size={18} color={AppColors.accentOrange} />
-              <Text style={[styles.limitBannerText, { color: AppColors.accentOrange }]}>{message}</Text>
-            </View>
-          ) : (
-            <Text style={[styles.heroSubtitle, { color: colors.onSurfaceVariant }]}>
-              Plan ahead, add more stops, and unlock{"\n"}more matches along your route.
-            </Text>
-          )}
-        </LinearGradient>
-
-        {/* ── Boost Callout ── */}
-        <View style={[styles.boostCard, { backgroundColor: proHighlight, borderColor: isDark ? "rgba(212,160,74,0.20)" : "rgba(212,160,74,0.25)" }]}>
-          <View style={[styles.boostIconWrap, { backgroundColor: GOLD }]}>
-            <Ionicons name="rocket" size={20} color="#fff" />
-          </View>
-          <View style={styles.boostTextWrap}>
-            <Text style={[styles.boostTitle, { color: colors.onSurface }]}>Plan ahead = Profile boost</Text>
-            <Text style={[styles.boostDesc, { color: colors.onSurfaceVariant }]}>
-              Pro lets you plan months ahead — putting your profile in front of more travelers heading your way.
-            </Text>
-          </View>
-        </View>
-
-        {/* ── Free vs Pro Comparison ── */}
-        <View style={styles.comparisonSection}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Free vs Pro</Text>
-
-          <View style={[styles.comparisonCard, { backgroundColor: cardBg, borderColor: borderSubtle }]}>
-            {/* Column headers */}
-            <View style={[styles.compRow, styles.compHeader]}>
-              <View style={styles.compLabelCol} />
-              <View style={styles.compValueCol}>
-                <Text style={[styles.compHeaderText, { color: colors.onSurfaceVariant }]}>Free</Text>
+        {/* ─── Features ─── */}
+        <Animated.View entering={FadeInDown.delay(250).duration(500)} style={styles.featureList}>
+          {FEATURES.map((f, i) => (
+            <View key={f.label} style={[styles.featureRow, i < FEATURES.length - 1 && styles.featureRowBorder]}>
+              <View style={styles.featureIconWrap}>
+                <Ionicons name={f.icon} size={18} color={GOLD} />
               </View>
-              <View style={[styles.compValueCol, styles.compProCol, { backgroundColor: proHighlight }]}>
-                <Text style={[styles.compHeaderText, { color: GOLD }]}>Pro</Text>
-              </View>
-            </View>
-
-            {COMPARISON_ROWS.map((row, i) => (
-              <View
-                key={row.label}
-                style={[
-                  styles.compRow,
-                  i < COMPARISON_ROWS.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: borderSubtle },
-                ]}
-              >
-                <View style={styles.compLabelCol}>
-                  <Ionicons name={row.icon} size={16} color={colors.onSurfaceVariant} style={{ marginRight: 8 }} />
-                  <Text style={[styles.compLabel, { color: colors.onSurface }]}>{row.label}</Text>
-                </View>
-                <View style={styles.compValueCol}>
-                  <Text style={[styles.compFreeValue, { color: colors.onSurfaceVariant }]}>{row.free}</Text>
-                </View>
-                <View style={[styles.compValueCol, styles.compProCol, { backgroundColor: proHighlight }]}>
-                  <Text style={[styles.compProValue, { color: isDark ? GOLD_LIGHT : GOLD_DARK }]}>{row.pro}</Text>
+              <View style={styles.featureTextWrap}>
+                <Text style={styles.featureLabel}>{f.label}</Text>
+                <View style={styles.featureValues}>
+                  {f.free ? (
+                    <Text style={styles.featureFree}>{f.free}</Text>
+                  ) : (
+                    <Text style={styles.featureFreeNone}>—</Text>
+                  )}
+                  <Ionicons name="arrow-forward" size={12} color="#555" style={{ marginHorizontal: 8 }} />
+                  <Text style={styles.featurePro}>{f.pro}</Text>
                 </View>
               </View>
-            ))}
-          </View>
-        </View>
-
-        {/* ── Plan Selector & CTA ── */}
-        {loading ? (
-          <ActivityIndicator size="large" color={GOLD} style={{ marginTop: 32 }} />
-        ) : packages.length > 0 ? (
-          <View style={styles.ctaSection}>
-            {/* Plan toggle cards */}
-            <View style={styles.planToggle}>
-              {/* Yearly */}
-              {annualPkg && (
-                <Pressable
-                  onPress={() => setSelectedPlan("ANNUAL")}
-                  style={[
-                    styles.planCard,
-                    {
-                      backgroundColor: selectedPlan === "ANNUAL" ? (isDark ? "rgba(212,160,74,0.12)" : "rgba(212,160,74,0.08)") : cardBg,
-                      borderColor: selectedPlan === "ANNUAL" ? GOLD : borderSubtle,
-                      borderWidth: selectedPlan === "ANNUAL" ? 2 : 1,
-                    },
-                  ]}
-                >
-                  <View style={styles.planCardHeader}>
-                    <View style={[styles.planRadio, selectedPlan === "ANNUAL" && { borderColor: GOLD }]}>
-                      {selectedPlan === "ANNUAL" && <View style={[styles.planRadioInner, { backgroundColor: GOLD }]} />}
-                    </View>
-                    <Text style={[styles.planName, { color: colors.onSurface }]}>Yearly</Text>
-                    <View style={[styles.saveBadge, { backgroundColor: GOLD }]}>
-                      <Text style={styles.saveBadgeText}>SAVE 24%</Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.planPrice, { color: colors.onSurface }]}>
-                    {annualPkg.product.priceString}
-                    <Text style={[styles.planPeriod, { color: colors.onSurfaceVariant }]}> /year</Text>
-                  </Text>
-                  <Text style={[styles.planSubPrice, { color: colors.onSurfaceVariant }]}>
-                    ≈ $7.58/mo
-                  </Text>
-                </Pressable>
-              )}
-
-              {/* Monthly */}
-              {monthlyPkg && (
-                <Pressable
-                  onPress={() => setSelectedPlan("MONTHLY")}
-                  style={[
-                    styles.planCard,
-                    {
-                      backgroundColor: selectedPlan === "MONTHLY" ? (isDark ? "rgba(212,160,74,0.12)" : "rgba(212,160,74,0.08)") : cardBg,
-                      borderColor: selectedPlan === "MONTHLY" ? GOLD : borderSubtle,
-                      borderWidth: selectedPlan === "MONTHLY" ? 2 : 1,
-                    },
-                  ]}
-                >
-                  <View style={styles.planCardHeader}>
-                    <View style={[styles.planRadio, selectedPlan === "MONTHLY" && { borderColor: GOLD }]}>
-                      {selectedPlan === "MONTHLY" && <View style={[styles.planRadioInner, { backgroundColor: GOLD }]} />}
-                    </View>
-                    <Text style={[styles.planName, { color: colors.onSurface }]}>Monthly</Text>
-                  </View>
-                  <Text style={[styles.planPrice, { color: colors.onSurface }]}>
-                    {monthlyPkg.product.priceString}
-                    <Text style={[styles.planPeriod, { color: colors.onSurfaceVariant }]}> /month</Text>
-                  </Text>
-                </Pressable>
-              )}
             </View>
+          ))}
+        </Animated.View>
 
-            {/* CTA Button */}
-            <Pressable
-              style={[styles.ctaButton, { opacity: purchasing ? 0.7 : 1 }]}
-              onPress={handlePurchase}
-              disabled={purchasing}
-            >
-              <LinearGradient
-                colors={[GOLD, GOLD_DARK]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.ctaGradient}
-              >
-                {purchasing ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="diamond" size={20} color="#fff" style={{ marginRight: 8 }} />
-                    <Text style={styles.ctaText}>
-                      Upgrade to Pro
+        {/* ─── Plan selector + CTA ─── */}
+        <Animated.View entering={FadeIn.delay(450).duration(400)} style={styles.ctaArea}>
+          {loading ? (
+            <ActivityIndicator size="small" color={GOLD} style={{ marginVertical: 20 }} />
+          ) : packages.length > 0 ? (
+            <>
+              {/* Plan pills */}
+              <View style={styles.planRow}>
+                {annualPkg && (
+                  <Pressable
+                    onPress={() => setSelectedPlan("ANNUAL")}
+                    style={[
+                      styles.planPill,
+                      selectedPlan === "ANNUAL" && styles.planPillActive,
+                    ]}
+                  >
+                    <Text style={[styles.planPillLabel, selectedPlan === "ANNUAL" && styles.planPillLabelActive]}>
+                      Yearly
                     </Text>
-                  </>
+                    <Text style={[styles.planPillPrice, selectedPlan === "ANNUAL" && styles.planPillPriceActive]}>
+                      {annualPkg.product.priceString}
+                    </Text>
+                    {selectedPlan === "ANNUAL" && (
+                      <View style={styles.saveBadge}>
+                        <Text style={styles.saveBadgeText}>SAVE 24%</Text>
+                      </View>
+                    )}
+                  </Pressable>
                 )}
-              </LinearGradient>
-            </Pressable>
+                {monthlyPkg && (
+                  <Pressable
+                    onPress={() => setSelectedPlan("MONTHLY")}
+                    style={[
+                      styles.planPill,
+                      selectedPlan === "MONTHLY" && styles.planPillActive,
+                    ]}
+                  >
+                    <Text style={[styles.planPillLabel, selectedPlan === "MONTHLY" && styles.planPillLabelActive]}>
+                      Monthly
+                    </Text>
+                    <Text style={[styles.planPillPrice, selectedPlan === "MONTHLY" && styles.planPillPriceActive]}>
+                      {monthlyPkg.product.priceString}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
 
-            {/* Terms line */}
-            <Text style={[styles.termsText, { color: colors.onSurfaceVariant }]}>
-              Cancel anytime. Subscription renews automatically.
-            </Text>
-          </View>
-        ) : (
-          /* Offerings unavailable — store connection issue */
-          <View style={styles.ctaSection}>
-            <View style={[styles.storeNotice, { backgroundColor: cardBg, borderColor: borderSubtle }]}>
-              <Ionicons name="cloud-offline-outline" size={22} color={colors.onSurfaceVariant} />
-              <Text style={[styles.storeNoticeText, { color: colors.onSurfaceVariant }]}>
-                Unable to connect to the store right now.{"\n"}Please check your connection and try again.
+              {/* CTA */}
+              <Pressable
+                style={[styles.ctaButton, { opacity: purchasing ? 0.6 : 1 }]}
+                onPress={handlePurchase}
+                disabled={purchasing}
+              >
+                <LinearGradient
+                  colors={[GOLD, GOLD_DARK]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.ctaGradient}
+                >
+                  {purchasing ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.ctaText}>Continue with Pro</Text>
+                  )}
+                </LinearGradient>
+              </Pressable>
+            </>
+          ) : (
+            /* Store unavailable */
+            <View style={styles.storeNotice}>
+              <Ionicons name="cloud-offline-outline" size={18} color="#777" />
+              <Text style={styles.storeNoticeText}>
+                Unable to connect to the store. Please try again later.
               </Text>
             </View>
-            <Pressable
-              style={styles.ctaButton}
-              onPress={onClose}
-            >
-              <LinearGradient
-                colors={[GOLD, GOLD_DARK]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.ctaGradient}
-              >
-                <Text style={styles.ctaText}>Close</Text>
-              </LinearGradient>
-            </Pressable>
-          </View>
-        )}
+          )}
 
-        {/* Restore */}
-        <Pressable onPress={handleRestore} disabled={purchasing} style={styles.restoreButton}>
-          <Text style={[styles.restoreText, { color: colors.onSurfaceVariant }]}>
-            Restore Purchases
-          </Text>
-        </Pressable>
-      </ScrollView>
-    </View>
+          {/* Footer links */}
+          <View style={styles.footerRow}>
+            <Pressable onPress={handleRestore} disabled={purchasing}>
+              <Text style={styles.footerLink}>Restore Purchases</Text>
+            </Pressable>
+            <Text style={styles.footerDot}>·</Text>
+            <Text style={styles.footerMuted}>Cancel anytime</Text>
+          </View>
+        </Animated.View>
+      </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  glow: {
+    position: "absolute",
+    top: -100,
+    alignSelf: "center",
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: "rgba(212,160,74,0.10)",
   },
   closeButton: {
     position: "absolute",
@@ -360,264 +256,157 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     justifyContent: "center",
   },
-  scrollContent: {
-    paddingHorizontal: 0,
+  content: {
+    flex: 1,
+    justifyContent: "space-between",
+    paddingHorizontal: 24,
   },
 
   /* ── Hero ── */
-  hero: {
-    paddingHorizontal: 24,
-    paddingBottom: 28,
+  heroSection: {
     alignItems: "center",
   },
-  routeIllustration: {
-    marginBottom: 20,
-    alignItems: "center",
-  },
-  routeDots: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  routeDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  routeLine: {
-    width: 20,
-    height: 2,
-  },
-  routeDotPro: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+  iconBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-  },
-  routeLinePro: {
-    width: 24,
-    height: 2.5,
-  },
-  routeLabels: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-    marginTop: 6,
-    paddingHorizontal: 10,
-  },
-  routeLabelFree: {
-    fontFamily: "Outfit_500Medium",
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  routeLabelPro: {
-    fontFamily: "Outfit_600SemiBold",
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  proBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 5,
-    marginBottom: 16,
-  },
-  proBadgeText: {
-    color: "#fff",
-    fontFamily: "Outfit_700Bold",
-    fontSize: 14,
-    letterSpacing: 1.5,
+    marginBottom: 20,
   },
   heroTitle: {
     fontFamily: "Outfit_700Bold",
-    fontSize: 30,
-    textAlign: "center",
-    lineHeight: 38,
+    fontSize: 32,
+    color: "#FFFFFF",
+    letterSpacing: -0.5,
     marginBottom: 10,
   },
   heroSubtitle: {
     fontFamily: "Outfit_400Regular",
     fontSize: 15,
+    color: "#888",
     textAlign: "center",
     lineHeight: 22,
+    maxWidth: 280,
   },
-  limitBanner: {
+
+  /* ── Features ── */
+  featureList: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    paddingVertical: 4,
+    paddingHorizontal: 16,
+  },
+  featureRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    gap: 8,
-    marginTop: 4,
+    paddingVertical: 14,
+    gap: 14,
   },
-  limitBannerText: {
+  featureRowBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+  },
+  featureIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: "rgba(212,160,74,0.10)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  featureTextWrap: {
+    flex: 1,
+  },
+  featureLabel: {
     fontFamily: "Outfit_500Medium",
     fontSize: 14,
-    flex: 1,
+    color: "#E0DDD8",
+    marginBottom: 2,
   },
-
-  /* ── Boost Callout ── */
-  boostCard: {
+  featureValues: {
     flexDirection: "row",
-    marginHorizontal: 20,
-    marginBottom: 24,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    gap: 14,
     alignItems: "center",
   },
-  boostIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  boostTextWrap: {
-    flex: 1,
-  },
-  boostTitle: {
-    fontFamily: "Outfit_600SemiBold",
-    fontSize: 15,
-    marginBottom: 3,
-  },
-  boostDesc: {
+  featureFree: {
     fontFamily: "Outfit_400Regular",
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    color: "#666",
   },
-
-  /* ── Comparison ── */
-  comparisonSection: {
-    paddingHorizontal: 20,
-    marginBottom: 28,
+  featureFreeNone: {
+    fontFamily: "Outfit_400Regular",
+    fontSize: 12,
+    color: "#444",
   },
-  sectionTitle: {
-    fontFamily: "Outfit_700Bold",
-    fontSize: 18,
-    marginBottom: 12,
-  },
-  comparisonCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  compRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 44,
-  },
-  compHeader: {
-    minHeight: 36,
-  },
-  compLabelCol: {
-    flex: 1.3,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingLeft: 14,
-    paddingVertical: 10,
-  },
-  compValueCol: {
-    flex: 0.7,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-  },
-  compProCol: {
-    borderTopRightRadius: 0,
-  },
-  compHeaderText: {
+  featurePro: {
     fontFamily: "Outfit_600SemiBold",
     fontSize: 12,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  compLabel: {
-    fontFamily: "Outfit_400Regular",
-    fontSize: 14,
-  },
-  compFreeValue: {
-    fontFamily: "Outfit_400Regular",
-    fontSize: 13,
-  },
-  compProValue: {
-    fontFamily: "Outfit_700Bold",
-    fontSize: 13,
+    color: GOLD,
   },
 
-  /* ── Plan Toggle ── */
-  ctaSection: {
-    paddingHorizontal: 20,
+  /* ── CTA area ── */
+  ctaArea: {
+    gap: 14,
   },
-  planToggle: {
-    gap: 10,
-    marginBottom: 16,
-  },
-  planCard: {
-    padding: 16,
-    borderRadius: 16,
-  },
-  planCardHeader: {
+
+  /* Plan pills */
+  planRow: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
+    gap: 10,
   },
-  planRadio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "rgba(150,150,150,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-  },
-  planRadioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  planName: {
-    fontFamily: "Outfit_600SemiBold",
-    fontSize: 16,
+  planPill: {
     flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    alignItems: "center",
+  },
+  planPillActive: {
+    borderColor: GOLD,
+    borderWidth: 1.5,
+    backgroundColor: "rgba(212,160,74,0.08)",
+  },
+  planPillLabel: {
+    fontFamily: "Outfit_500Medium",
+    fontSize: 13,
+    color: "#777",
+    marginBottom: 4,
+  },
+  planPillLabelActive: {
+    color: "#CCC",
+  },
+  planPillPrice: {
+    fontFamily: "Outfit_700Bold",
+    fontSize: 18,
+    color: "#999",
+  },
+  planPillPriceActive: {
+    color: "#FFFFFF",
   },
   saveBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 10,
+    backgroundColor: GOLD,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginTop: 6,
   },
   saveBadgeText: {
     color: "#fff",
     fontFamily: "Outfit_700Bold",
-    fontSize: 11,
+    fontSize: 10,
     letterSpacing: 0.5,
   },
-  planPrice: {
-    fontFamily: "Outfit_700Bold",
-    fontSize: 22,
-    marginLeft: 30,
-  },
-  planPeriod: {
-    fontFamily: "Outfit_400Regular",
-    fontSize: 15,
-  },
-  planSubPrice: {
-    fontFamily: "Outfit_400Regular",
-    fontSize: 13,
-    marginLeft: 30,
-    marginTop: 2,
-  },
 
-  /* ── CTA Button ── */
+  /* CTA button */
   ctaButton: {
     borderRadius: 16,
     overflow: "hidden",
@@ -631,41 +420,44 @@ const styles = StyleSheet.create({
   ctaText: {
     color: "#fff",
     fontFamily: "Outfit_700Bold",
-    fontSize: 18,
-  },
-  termsText: {
-    fontFamily: "Outfit_400Regular",
-    fontSize: 12,
-    textAlign: "center",
-    marginTop: 10,
+    fontSize: 17,
   },
 
-  /* ── Store notice ── */
+  /* Store notice */
   storeNotice: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
     gap: 10,
-    marginBottom: 12,
+    paddingVertical: 16,
   },
   storeNoticeText: {
     flex: 1,
     fontFamily: "Outfit_400Regular",
     fontSize: 13,
+    color: "#666",
     lineHeight: 18,
   },
 
-  /* ── Restore ── */
-  restoreButton: {
+  /* Footer */
+  footerRow: {
+    flexDirection: "row",
+    justifyContent: "center",
     alignItems: "center",
-    marginTop: 16,
-    paddingVertical: 12,
+    gap: 8,
   },
-  restoreText: {
+  footerLink: {
     fontFamily: "Outfit_400Regular",
-    fontSize: 14,
+    fontSize: 13,
+    color: "#777",
     textDecorationLine: "underline",
+  },
+  footerDot: {
+    color: "#555",
+    fontSize: 13,
+  },
+  footerMuted: {
+    fontFamily: "Outfit_400Regular",
+    fontSize: 13,
+    color: "#555",
   },
 });
