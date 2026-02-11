@@ -32,7 +32,7 @@ export function BirthdayStep({ dob, onChangeDob, onNext }: BirthdayStepProps) {
           entering={FadeInDown.delay(200).duration(500)}
           style={[styles.subtitle, { color: colors.onSurfaceVariant }]}
         >
-          You must be 18 or older to use Roam
+          You must be 18 or older to use zelani
         </Animated.Text>
 
         <Animated.View entering={FadeInDown.delay(300).duration(500)} style={styles.pickerWrapper}>

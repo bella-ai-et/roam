@@ -8,7 +8,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   slug: 'zelani',
   version: '1.0.0',
   orientation: 'portrait',
-  icon: './assets/images/icon.png',
+  icon: './assets/images/zelani-icon.png',
   scheme: 'zelani',
   userInterfaceStyle: 'automatic',
   ios: {
@@ -23,10 +23,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     adaptiveIcon: {
       backgroundColor: '#1A1A2E',
-      foregroundImage: './assets/images/android-icon-foreground.png',
+      foregroundImage: './assets/images/zelani-icon.png',
     },
-    // @ts-ignore: edgeToEdgeEnabled is valid in SDK 55 but missing in types
-    edgeToEdgeEnabled: true,
     permissions: [
       'android.permission.ACCESS_FINE_LOCATION',
       'android.permission.ACCESS_COARSE_LOCATION',
@@ -61,7 +59,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-splash-screen',
       {
-        image: './assets/images/splash-icon.png',
+        image: './assets/images/zelani-icon.png',
         imageWidth: 200,
         resizeMode: 'contain',
         backgroundColor: '#1A1A2E',

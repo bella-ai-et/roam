@@ -27,7 +27,7 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
         </Animated.View>
 
         <Animated.Text entering={FadeInDown.delay(200).duration(600)} style={styles.title}>
-          Roam
+          zelani
         </Animated.Text>
 
         <Animated.Text entering={FadeInDown.delay(400).duration(600)} style={styles.subtitle}>
