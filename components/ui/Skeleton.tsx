@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { View, StyleSheet, ViewStyle } from "react-native";
+import { View, StyleSheet, ViewStyle, Dimensions } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -165,11 +165,47 @@ export function ProfileSkeleton() {
   );
 }
 
-/** Skeleton for the discover screen */
+/** Skeleton for the discover screen — mimics the PreviewCard layout */
 export function DiscoverSkeleton() {
+  const { isDark } = useAppTheme();
+  const cardBg = isDark ? "#1C1C1C" : "#E8E4E0";
+
   return (
-    <View style={[presets.container, { alignItems: "center", justifyContent: "center", flex: 1 }]}>
-      <Skeleton width="92%" height={480} radius={20} />
+    <View style={presets.discoverWrap}>
+      <View style={[presets.discoverCard, { backgroundColor: cardBg }]}>
+        {/* Photo dots — top center */}
+        <View style={presets.discoverDots}>
+          <Skeleton width={6} height={6} radius={3} />
+          <Skeleton width={6} height={6} radius={3} />
+          <Skeleton width={6} height={6} radius={3} />
+          <Skeleton width={6} height={6} radius={3} />
+        </View>
+
+        {/* Mini map — top right */}
+        <View style={presets.discoverMiniMap}>
+          <Skeleton width={100} height={100} radius={20} />
+        </View>
+
+        {/* Spacer to push info to bottom */}
+        <View style={{ flex: 1 }} />
+
+        {/* Name + travel info — bottom area */}
+        <View style={presets.discoverInfo}>
+          <Skeleton width={180} height={26} radius={8} />
+          <View style={[presets.row, { gap: 8, marginTop: 10 }]}>
+            <Skeleton width={16} height={16} radius={8} />
+            <Skeleton width={200} height={14} radius={6} />
+          </View>
+          <Skeleton width={160} height={12} radius={6} style={{ marginTop: 6 }} />
+          <Skeleton width={120} height={13} radius={6} style={{ marginTop: 8 }} />
+        </View>
+
+        {/* Action buttons — bottom center */}
+        <View style={presets.discoverButtons}>
+          <Skeleton width={72} height={72} radius={36} />
+          <Skeleton width={72} height={72} radius={36} />
+        </View>
+      </View>
     </View>
   );
 }
@@ -202,5 +238,41 @@ const presets = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     paddingHorizontal: 4,
+  },
+  discoverWrap: {
+    alignItems: "center",
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  discoverCard: {
+    width: "100%",
+    height: Dimensions.get("window").height * 0.72,
+    borderRadius: 40,
+    overflow: "hidden",
+    padding: 0,
+  },
+  discoverDots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+    paddingTop: 18,
+    zIndex: 10,
+  },
+  discoverMiniMap: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    zIndex: 10,
+  },
+  discoverInfo: {
+    paddingHorizontal: 28,
+    paddingBottom: 8,
+  },
+  discoverButtons: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 36,
+    paddingBottom: 24,
+    paddingTop: 16,
   },
 });
