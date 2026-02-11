@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Text,
   View,
@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+  cancelAnimation,
   Extrapolate,
   interpolate,
   runOnJS,
@@ -159,65 +160,88 @@ export default function DiscoverScreen() {
   const resetSwipes = useMutation(api.swipes.resetSwipes);
   const updateRoute = useMutation(api.users.updateRoute);
   const seedDemoProfiles = useMutation((api as any).seed.seed);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [swipedIds, setSwipedIds] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState(false);
   const [matchState, setMatchState] = useState<{ user: Doc<"users">; matchId: Id<"matches"> } | null>(null);
   const [applyingDemoRoute, setApplyingDemoRoute] = useState(false);
   const [likesPaywallVisible, setLikesPaywallVisible] = useState(false);
   const [mapModalVisible, setMapModalVisible] = useState(false);
   const translateX = useSharedValue(0);
+
+  // Stable no-op callbacks so background PreviewCards skip re-renders via React.memo
+  const noop = useCallback(() => {}, []);
+  const handleExpand = useCallback(() => setExpanded(true), []);
+  const handleCollapse = useCallback(() => setExpanded(false), []);
+  const handleShowMap = useCallback(() => setMapModalVisible(true), []);
+  const handleCloseMap = useCallback(() => setMapModalVisible(false), []);
+  const handleCloseMatch = useCallback(() => setMatchState(null), []);
+  const handleClosePaywall = useCallback(() => setLikesPaywallVisible(false), []);
   const isSwipingRef = useSharedValue(false);
   const activeMatchRef = useRef<RouteMatch | null>(null);
 
-  const availableMatches = useMemo(() => matches ?? [], [matches]);
-  const activeMatch = availableMatches[activeIndex];
-
-  useEffect(() => {
-    setActiveIndex(0);
-    setExpanded(false);
-    translateX.value = 0;
-  }, [matches, translateX]);
+  // Filter out locally-swiped profiles for instant feedback (optimistic update).
+  // When the Convex reactive query catches up and removes swiped users server-side,
+  // the Set filter is naturally consistent — no index tracking needed.
+  const visibleMatches = useMemo(
+    () => (matches ?? []).filter((m) => !swipedIds.has(m.user._id)),
+    [matches, swipedIds]
+  );
+  const activeMatch = visibleMatches[0];
 
   useEffect(() => {
     activeMatchRef.current = activeMatch ?? null;
   }, [activeMatch]);
 
+  // Reset translateX AFTER React has committed the re-render (swiped card removed
+  // from the tree). useLayoutEffect fires before native paint, so the new top card
+  // appears at center without a 1-frame flash of the old card snapping back.
+  useLayoutEffect(() => {
+    if (swipedIds.size > 0) {
+      translateX.value = 0;
+    }
+  }, [swipedIds, translateX]);
+
   const handleSwipeComplete = useCallback(
-    async (action: "like" | "reject") => {
+    (action: "like" | "reject") => {
       const match = activeMatchRef.current;
       if (!match || !currentUser?._id) {
         isSwipingRef.value = false;
+        translateX.value = 0;
         return;
       }
 
       hapticButtonPress();
 
-      try {
-        const result = await recordSwipe({
-          swiperId: currentUser._id,
-          swipedId: match.user._id,
-          action,
+      // ── Optimistic removal: add to local filter set immediately ──
+      // translateX is reset in the useLayoutEffect, AFTER React commits the new tree.
+      setExpanded(false);
+      setSwipedIds((prev) => new Set(prev).add(match.user._id));
+      isSwipingRef.value = false;
+
+      // ── Fire-and-forget: record swipe in background ──
+      recordSwipe({
+        swiperId: currentUser._id,
+        swipedId: match.user._id,
+        action,
+      })
+        .then((result) => {
+          if (result?.matched) {
+            setMatchState({ user: match.user, matchId: result.matchId as Id<"matches"> });
+          }
+        })
+        .catch((err: any) => {
+          if (err?.message?.includes("DAILY_LIKES_LIMIT")) {
+            // Revert: remove from swiped set so the card reappears
+            cancelAnimation(translateX);
+            translateX.value = 0;
+            setSwipedIds((prev) => {
+              const next = new Set(prev);
+              next.delete(match.user._id);
+              return next;
+            });
+            setLikesPaywallVisible(true);
+          }
         });
-
-        setExpanded(false);
-        setActiveIndex((prev) => prev + 1);
-
-        requestAnimationFrame(() => {
-          translateX.value = withTiming(0, { duration: 0 });
-        });
-
-        if (result?.matched) {
-          setMatchState({ user: match.user, matchId: result.matchId as Id<"matches"> });
-        }
-      } catch (err: any) {
-        if (err?.message?.includes("DAILY_LIKES_LIMIT")) {
-          // Reset card position and show paywall
-          translateX.value = withTiming(0, { duration: 200 });
-          setLikesPaywallVisible(true);
-        }
-      } finally {
-        isSwipingRef.value = false;
-      }
     },
     [currentUser?._id, recordSwipe, isSwipingRef, translateX]
   );
@@ -242,6 +266,9 @@ export default function DiscoverScreen() {
     },
     [translateX, isSwipingRef, handleSwipeComplete]
   );
+
+  const handleLikeSwipe = useCallback(() => triggerSwipe("like"), [triggerSwipe]);
+  const handleRejectSwipe = useCallback(() => triggerSwipe("reject"), [triggerSwipe]);
 
   const applyDemoRoute = async () => {
     if (!currentUser?._id) return;
@@ -377,9 +404,9 @@ export default function DiscoverScreen() {
   });
 
   const stack = useMemo(() => {
-    const visible = availableMatches.slice(activeIndex, activeIndex + 3);
+    const visible = visibleMatches.slice(0, 3);
     return visible.map((match, index) => ({ match, depth: index, isTop: index === 0 }));
-  }, [availableMatches, activeIndex]);
+  }, [visibleMatches]);
 
   // ─── Render: Empty state ───
   if (!activeMatch) {
@@ -407,7 +434,7 @@ export default function DiscoverScreen() {
           visible={Boolean(matchState)}
           matchedUser={matchState?.user}
           matchId={matchState?.matchId}
-          onClose={() => setMatchState(null)}
+          onClose={handleCloseMatch}
         />
       </View>
     );
@@ -423,22 +450,22 @@ export default function DiscoverScreen() {
         <View style={[styles.expandedContent, { paddingBottom: 0 }]}>
           <ExpandedCard
             match={activeMatch}
-            onCollapse={() => setExpanded(false)}
-            onLike={() => triggerSwipe("like")}
-            onReject={() => triggerSwipe("reject")}
+            onCollapse={handleCollapse}
+            onLike={handleLikeSwipe}
+            onReject={handleRejectSwipe}
             bottomInset={0}
-            onExpandMap={() => setMapModalVisible(true)}
+            onExpandMap={handleShowMap}
           />
         </View>
         <MatchCelebration
           visible={Boolean(matchState)}
           matchedUser={matchState?.user}
           matchId={matchState?.matchId}
-          onClose={() => setMatchState(null)}
+          onClose={handleCloseMatch}
         />
         <RouteComparisonModal
           visible={mapModalVisible}
-          onClose={() => setMapModalVisible(false)}
+          onClose={handleCloseMap}
           theirRoute={activeMatch.user.currentRoute}
           myRoute={currentUser?.currentRoute}
           overlaps={activeMatch.overlaps}
@@ -455,79 +482,65 @@ export default function DiscoverScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.content, { paddingTop: insets.top, paddingBottom: insets.bottom + 8 }]}>
-        <View style={styles.cardStack}>
-          {stack
-            .slice()
-            .reverse()
-            .map(({ match, depth, isTop }) => {
-              const translateY = depth * 10;
-              const scale = 1 - depth * 0.04;
+        <GestureDetector gesture={panGesture}>
+          <Animated.View style={styles.cardStack}>
+            {stack
+              .slice()
+              .reverse()
+              .map(({ match, depth, isTop }) => {
+                const translateY = depth * 10;
+                const scale = 1 - depth * 0.04;
 
-              if (isTop) {
                 return (
-                  <GestureDetector key={match.user._id} gesture={panGesture}>
-                    <Animated.View
-                      style={[
-                        styles.cardContainer,
-                        { transform: [{ translateY }, { scale }] },
-                        cardStyle,
-                      ]}
-                    >
-                      <PreviewCard
-                        match={match}
-                        onExpand={() => setExpanded(true)}
-                        onLike={() => triggerSwipe("like")}
-                        onReject={() => triggerSwipe("reject")}
-                        isTopCard={true}
-                        onExpandMap={() => setMapModalVisible(true)}
-                      />
-                      {/* LIKE overlay badge */}
-                      <Animated.View style={[styles.overlayBadge, styles.likeBadge, likeOverlayStyle]}>
-                        <Text style={[styles.overlayText, { color: "#4ade80" }]}>LIKE</Text>
-                      </Animated.View>
-                      {/* NOPE overlay badge */}
-                      <Animated.View style={[styles.overlayBadge, styles.nopeBadge, nopeOverlayStyle]}>
-                        <Text style={[styles.overlayText, { color: "#f87171" }]}>NOPE</Text>
-                      </Animated.View>
-                    </Animated.View>
-                  </GestureDetector>
+                  <Animated.View
+                    key={match.user._id}
+                    style={[
+                      styles.cardContainer,
+                      { transform: [{ translateY }, { scale }] },
+                      isTop ? cardStyle : undefined,
+                    ]}
+                  >
+                    <PreviewCard
+                      match={match}
+                      onExpand={isTop ? handleExpand : noop}
+                      onLike={isTop ? handleLikeSwipe : noop}
+                      onReject={isTop ? handleRejectSwipe : noop}
+                      isTopCard={isTop}
+                      onExpandMap={isTop ? handleShowMap : undefined}
+                    />
+                    {isTop && (
+                      <>
+                        {/* LIKE overlay badge */}
+                        <Animated.View style={[styles.overlayBadge, styles.likeBadge, likeOverlayStyle]}>
+                          <Text style={[styles.overlayText, { color: "#4ade80" }]}>LIKE</Text>
+                        </Animated.View>
+                        {/* NOPE overlay badge */}
+                        <Animated.View style={[styles.overlayBadge, styles.nopeBadge, nopeOverlayStyle]}>
+                          <Text style={[styles.overlayText, { color: "#f87171" }]}>NOPE</Text>
+                        </Animated.View>
+                      </>
+                    )}
+                  </Animated.View>
                 );
-              }
-
-              return (
-                <View
-                  key={match.user._id}
-                  style={[
-                    styles.cardContainer,
-                    { transform: [{ translateY }, { scale }] },
-                  ]}
-                >
-                  <PreviewCard
-                    match={match}
-                    onExpand={() => {}}
-                    onLike={() => {}}
-                    onReject={() => {}}
-                  />
-                </View>
-              );
-            })}
-        </View>
+              })}
+          </Animated.View>
+        </GestureDetector>
       </View>
       <MatchCelebration
         visible={Boolean(matchState)}
         matchedUser={matchState?.user}
         matchId={matchState?.matchId}
-        onClose={() => setMatchState(null)}
+        onClose={handleCloseMatch}
       />
       <Modal visible={likesPaywallVisible} animationType="slide" presentationStyle="pageSheet">
         <Paywall
           message="You've used all your free likes for today"
-          onClose={() => setLikesPaywallVisible(false)}
+          onClose={handleClosePaywall}
         />
       </Modal>
       <RouteComparisonModal
         visible={mapModalVisible}
-        onClose={() => setMapModalVisible(false)}
+        onClose={handleCloseMap}
         theirRoute={activeMatch?.user.currentRoute}
         myRoute={currentUser?.currentRoute}
         overlaps={activeMatch?.overlaps}

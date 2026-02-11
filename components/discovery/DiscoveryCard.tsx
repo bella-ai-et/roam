@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { memo, useState } from "react";
 import {
   View,
   Text,
@@ -189,7 +189,7 @@ interface PreviewCardProps {
   onExpandMap?: () => void;
 }
 
-export function PreviewCard({ match, onLike, onReject, onExpand, isTopCard = false, onExpandMap }: PreviewCardProps) {
+export const PreviewCard = memo<PreviewCardProps>(function PreviewCard({ match, onLike, onReject, onExpand, isTopCard = false, onExpandMap }) {
   const { colors } = useAppTheme();
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
@@ -307,7 +307,7 @@ export function PreviewCard({ match, onLike, onReject, onExpand, isTopCard = fal
       </View>
     </View>
   );
-}
+});
 
 /* ═══════════════════════════════════════════════════════════
    Expanded Card (Image 2)

@@ -1,9 +1,10 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAppTheme, AppColors } from "@/lib/theme";
 import { MINI_MAP_SIZE } from "@/lib/constants";
 import Animated, {
+  FadeIn,
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
@@ -67,8 +68,29 @@ export function MiniRouteMap({ route, isTopCard = false, onExpand }: MiniRouteMa
     [mapData]
   );
 
+  // Defer real map mount so it doesn't compete with the card transition animation.
+  // Always start unmounted — setTimeout gives a reliable delay since Reanimated
+  // animations run on the UI thread and don't register with InteractionManager.
+  const [mapReady, setMapReady] = useState(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  useEffect(() => {
+    if (isTopCard && !mapReady) {
+      const timer = setTimeout(() => {
+        if (mountedRef.current) setMapReady(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    } else if (!isTopCard) {
+      setMapReady(false);
+      setMapLoaded(false);
+    }
+  }, [isTopCard]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Lazy-load: only resolve the native module when we actually need to render a map
-  const GMaps = isTopCard && mapData && camera ? getGoogleMaps() : undefined;
+  const GMaps = mapReady && mapData && camera ? getGoogleMaps() : undefined;
   const showRealMap = !!(GMaps && mapData && camera);
 
   // Pulsing glow animation for the border
@@ -102,6 +124,7 @@ export function MiniRouteMap({ route, isTopCard = false, onExpand }: MiniRouteMa
       ]}
     >
       {showRealMap ? (
+        <Animated.View entering={FadeIn.duration(400)} style={StyleSheet.absoluteFill}>
         <MapErrorBoundary
           fallback={<Placeholder surfaceColor={colors.surfaceVariant} />}
         >
@@ -167,6 +190,9 @@ export function MiniRouteMap({ route, isTopCard = false, onExpand }: MiniRouteMa
             />
           </View>
         </MapErrorBoundary>
+        {/* Keep placeholder visible until map has fully loaded */}
+        {!mapLoaded && <Placeholder surfaceColor={colors.surfaceVariant} />}
+        </Animated.View>
       ) : (
         <Placeholder surfaceColor={colors.surfaceVariant} />
       )}
