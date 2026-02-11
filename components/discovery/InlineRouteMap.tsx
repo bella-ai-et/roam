@@ -110,7 +110,7 @@ export function InlineRouteMap({ route, onExpand }: InlineRouteMapProps) {
                     id: "their-route",
                     coordinates: mapData.polylineCoords,
                     color: MAP_COLORS.theirRoute,
-                    width: 4,
+                    width: 5,
                   },
                 ]}
                 markers={[

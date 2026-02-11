@@ -164,6 +164,8 @@ export const getSyncsForUser = query({
           syncLocation: match.syncLocation ?? sync.location,
           syncDaysUntil: match.syncDaysUntil ?? sync.daysUntil,
           movingTo: sync.movingTo,
+          myRoute: currentUser.currentRoute,
+          theirRoute: otherUser?.currentRoute,
         };
       })
     );
@@ -220,6 +222,49 @@ export const getNewRouteOverlaps = query({
     );
 
     return results.filter(Boolean);
+  },
+});
+
+export const getSyncMapData = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const currentUser = await ctx.db.get(userId);
+    if (!currentUser) return null;
+
+    const asUser1 = await ctx.db.query("matches").withIndex("by_user1", (q) => q.eq("user1Id", userId)).collect();
+    const asUser2 = await ctx.db.query("matches").withIndex("by_user2", (q) => q.eq("user2Id", userId)).collect();
+    const allMatches = [...asUser1, ...asUser2];
+
+    const pins = await Promise.all(
+      allMatches.map(async (match) => {
+        const otherId = match.user1Id === userId ? match.user2Id : match.user1Id;
+        const otherUser = await ctx.db.get(otherId);
+        if (!otherUser) return null;
+
+        const sync = computeSyncStatus(
+          currentUser.currentRoute as RouteStop[] | undefined,
+          otherUser.currentRoute as RouteStop[] | undefined
+        );
+
+        return {
+          matchId: match._id,
+          otherUser: {
+            _id: otherUser._id,
+            name: otherUser.name,
+            photos: otherUser.photos,
+            vanType: otherUser.vanType,
+            currentRoute: otherUser.currentRoute,
+          },
+          syncStatus: sync.status,
+          syncLocation: sync.location,
+        };
+      })
+    );
+
+    return {
+      myRoute: currentUser.currentRoute,
+      pins: pins.filter(Boolean),
+    };
   },
 });
 

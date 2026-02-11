@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import { Text, View, StyleSheet, Pressable, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,6 +11,7 @@ import { hapticButtonPress } from "@/lib/haptics";
 import { useAppTheme, AppColors } from "@/lib/theme";
 import { RouteOverlapAvatar } from "@/components/syncs/RouteOverlapAvatar";
 import { SyncConversationRow } from "@/components/syncs/SyncConversationRow";
+import { SyncMapModal } from "@/components/syncs/SyncMapModal";
 import { AnimatedScreen } from "@/components/ui/AnimatedScreen";
 import { SyncsSkeleton } from "@/components/ui/Skeleton";
 
@@ -23,6 +24,8 @@ type SyncEntry = {
   syncLocation: string;
   syncDaysUntil: number | null;
   movingTo: string | null;
+  myRoute?: any[];
+  theirRoute?: any[];
 };
 
 type RouteOverlap = {
@@ -71,6 +74,13 @@ export default function RoutesScreen() {
     [allSyncs]
   );
 
+  const [syncMapVisible, setSyncMapVisible] = useState(false);
+
+  const openSyncMap = useCallback(() => {
+    hapticButtonPress();
+    setSyncMapVisible(true);
+  }, []);
+
   const navigateToChat = (matchId: string) => {
     hapticButtonPress();
     router.push(`/(app)/chat/${matchId}` as never);
@@ -103,6 +113,7 @@ export default function RoutesScreen() {
         </View>
         <View style={styles.headerActions}>
           <Pressable
+            onPress={openSyncMap}
             style={[
               styles.headerButton,
               {
@@ -111,18 +122,7 @@ export default function RoutesScreen() {
               },
             ]}
           >
-            <Ionicons name="map-outline" size={20} color={colors.onSurfaceVariant} />
-          </Pressable>
-          <Pressable
-            style={[
-              styles.headerButton,
-              {
-                backgroundColor: isDark ? "#1E1E1E" : "#FFFFFF",
-                borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
-              },
-            ]}
-          >
-            <Ionicons name="search-outline" size={20} color={colors.onSurfaceVariant} />
+            <Ionicons name="map" size={20} color={AppColors.primary} />
           </Pressable>
         </View>
       </View>
@@ -156,6 +156,7 @@ export default function RoutesScreen() {
                       user={item.otherUser}
                       overlapLocation={item.overlapLocation}
                       onPress={() => navigateToChat(item.matchId)}
+                      onMapPress={openSyncMap}
                     />
                   ))}
                 </ScrollView>
@@ -178,6 +179,8 @@ export default function RoutesScreen() {
                     syncLocation={item.syncLocation}
                     syncDaysUntil={item.syncDaysUntil}
                     movingTo={item.movingTo}
+                    myRoute={item.myRoute}
+                    theirRoute={item.theirRoute}
                     onPress={() => navigateToChat(item.match._id)}
                   />
                 ))}
@@ -186,6 +189,11 @@ export default function RoutesScreen() {
           </>
         )}
       </ScrollView>
+
+      <SyncMapModal
+        visible={syncMapVisible}
+        onClose={() => setSyncMapVisible(false)}
+      />
     </View>
     </AnimatedScreen>
   );

@@ -167,6 +167,124 @@ export function getOverlapRadius(distanceKm: number): number {
   return Math.min(base, 80) * 1000; // convert to meters
 }
 
+/* ─── Shared-stop & crossing detection ─── */
+
+export type SharedStop = {
+  coordinate: Coordinates;
+  myStopName: string;
+  theirStopName: string;
+  distanceKm: number;
+};
+
+export function haversineKm(a: Coordinates, b: Coordinates): number {
+  const R = 6371;
+  const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
+  const dLon = ((b.longitude - a.longitude) * Math.PI) / 180;
+  const lat1 = (a.latitude * Math.PI) / 180;
+  const lat2 = (b.latitude * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Find stops that both users share (within thresholdKm of each other).
+ */
+export function findSharedStops(
+  myRoute: RouteStop[],
+  theirRoute: RouteStop[],
+  thresholdKm = 50
+): SharedStop[] {
+  const shared: SharedStop[] = [];
+  const seen = new Set<string>();
+
+  for (const my of myRoute) {
+    for (const their of theirRoute) {
+      const key = `${my.location.name}|${their.location.name}`;
+      if (seen.has(key)) continue;
+
+      const dist = haversineKm(
+        { latitude: my.location.latitude, longitude: my.location.longitude },
+        { latitude: their.location.latitude, longitude: their.location.longitude }
+      );
+      if (dist <= thresholdKm) {
+        seen.add(key);
+        shared.push({
+          coordinate: {
+            latitude: (my.location.latitude + their.location.latitude) / 2,
+            longitude: (my.location.longitude + their.location.longitude) / 2,
+          },
+          myStopName: my.location.name,
+          theirStopName: their.location.name,
+          distanceKm: dist,
+        });
+      }
+    }
+  }
+  return shared;
+}
+
+function segmentsIntersect(
+  p1: Coordinates, p2: Coordinates,
+  p3: Coordinates, p4: Coordinates
+): Coordinates | null {
+  const d1x = p2.longitude - p1.longitude;
+  const d1y = p2.latitude - p1.latitude;
+  const d2x = p4.longitude - p3.longitude;
+  const d2y = p4.latitude - p3.latitude;
+  const cross = d1x * d2y - d1y * d2x;
+  if (Math.abs(cross) < 1e-10) return null;
+  const t = ((p3.longitude - p1.longitude) * d2y - (p3.latitude - p1.latitude) * d2x) / cross;
+  const u = ((p3.longitude - p1.longitude) * d1y - (p3.latitude - p1.latitude) * d1x) / cross;
+  if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+    return {
+      latitude: p1.latitude + t * d1y,
+      longitude: p1.longitude + t * d1x,
+    };
+  }
+  return null;
+}
+
+/**
+ * Find points where two route polylines actually cross each other.
+ */
+export function findCrossingPoints(
+  myCoords: Coordinates[],
+  theirCoords: Coordinates[]
+): Coordinates[] {
+  const crossings: Coordinates[] = [];
+  for (let i = 0; i < myCoords.length - 1; i++) {
+    for (let j = 0; j < theirCoords.length - 1; j++) {
+      const pt = segmentsIntersect(
+        myCoords[i], myCoords[i + 1],
+        theirCoords[j], theirCoords[j + 1]
+      );
+      if (pt) crossings.push(pt);
+    }
+  }
+  return crossings;
+}
+
+/**
+ * Compute a circle radius (meters) that looks proportional to the visible map extent.
+ */
+export function adaptiveRadius(allCoords: Coordinates[], factor = 0.025): number {
+  if (allCoords.length === 0) return 15000;
+  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+  for (const c of allCoords) {
+    minLat = Math.min(minLat, c.latitude);
+    maxLat = Math.max(maxLat, c.latitude);
+    minLng = Math.min(minLng, c.longitude);
+    maxLng = Math.max(maxLng, c.longitude);
+  }
+  const spanKm = haversineKm(
+    { latitude: minLat, longitude: minLng },
+    { latitude: maxLat, longitude: maxLng }
+  );
+  return Math.max(spanKm * factor, 8) * 1000;
+}
+
 /* ─── Map style constants ─── */
 
 /** Warm earthy style for the mini map widget (no roads, no POI — clean canvas) */
@@ -198,10 +316,14 @@ export const MODAL_MAP_STYLE = JSON.stringify([
 /* ─── Color constants for map elements ─── */
 
 export const MAP_COLORS = {
-  theirRoute: AppColors.primary,         // #D27C5C terracotta
-  myRoute: AppColors.accentTeal,         // #5C9D9B teal
-  overlapFill: "rgba(232,155,116,0.20)", // accentOrange at 20%
-  overlapStroke: AppColors.accentOrange,  // #E89B74
+  myRoute: "#0891B2",                     // bold cyan — "your path"
+  theirRoute: "#E11D48",                  // vivid rose — "their path"
+  sharedStop: "#F59E0B",                  // amber/gold — "you both stop here!"
+  sharedStopFill: "rgba(245,158,11,0.22)",
+  crossing: "#8B5CF6",                    // purple — "routes cross here"
+  crossingFill: "rgba(139,92,246,0.20)",
+  overlapFill: "rgba(245,158,11,0.15)",
+  overlapStroke: "#F59E0B",
 } as const;
 
 /* ─── Error boundary for native map views ─── */

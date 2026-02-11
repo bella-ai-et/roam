@@ -62,6 +62,7 @@ export default function AppLayout() {
       {isApproved && <Stack.Screen name="edit-route" options={{ headerShown: false }} />}
 
       {/* Approved-only screens (require tabs access) */}
+      {isApproved && <Stack.Screen name="profile/[userId]" options={{ headerShown: false }} />}
       {isApproved && <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />}
       {isApproved && <Stack.Screen name="community/[id]" options={{ headerShown: false }} />}
       {isApproved && <Stack.Screen name="community/create" options={{ headerShown: false }} />}

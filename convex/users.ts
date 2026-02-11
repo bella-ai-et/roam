@@ -6,6 +6,13 @@ export const getByClerkId = query({
   handler: async (ctx, { clerkId }) => { 
     return await ctx.db.query("users").filter((q) => q.eq(q.field("clerkId"), clerkId)).first(); 
   }, 
+});
+
+export const getById = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    return await ctx.db.get(userId);
+  },
 }); 
 
 export const createProfile = mutation({ 

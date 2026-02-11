@@ -1,16 +1,18 @@
-import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { View, Text, StyleSheet, Pressable, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { Image } from "expo-image";
 import { api } from "@/convex/_generated/api";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { useAppTheme } from "@/lib/theme";
+import { hapticButtonPress } from "@/lib/haptics";
 
 type RouteOverlapAvatarProps = {
   user: Doc<"users"> | null;
   overlapLocation: string;
   onPress: () => void;
+  onMapPress?: () => void;
 };
 
 function getInitials(name?: string) {
@@ -31,7 +33,38 @@ function normalizePhotoValue(value?: string) {
   return value.replace(/`/g, "").trim();
 }
 
-export function RouteOverlapAvatar({ user, overlapLocation, onPress }: RouteOverlapAvatarProps) {
+function PulsingRing() {
+  const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(0.6)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(scale, { toValue: 1.6, duration: 1200, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0, duration: 1200, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(scale, { toValue: 1, duration: 0, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0.6, duration: 0, useNativeDriver: true }),
+        ]),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [scale, opacity]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.pulseRing,
+        { transform: [{ scale }], opacity },
+      ]}
+    />
+  );
+}
+
+export function RouteOverlapAvatar({ user, overlapLocation, onPress, onMapPress }: RouteOverlapAvatarProps) {
   const { colors } = useAppTheme();
   const normalized = normalizePhotoValue(user?.photos?.[0]);
   const remote = isRemoteUrl(normalized);
@@ -43,6 +76,11 @@ export function RouteOverlapAvatar({ user, overlapLocation, onPress }: RouteOver
   const imageUri = remote ? normalized : photoUrl;
   const initials = getInitials(user?.name);
 
+  const handleMapPress = () => {
+    hapticButtonPress();
+    onMapPress?.();
+  };
+
   return (
     <Pressable onPress={onPress} style={styles.container}>
       <View style={styles.avatarWrapper}>
@@ -53,9 +91,14 @@ export function RouteOverlapAvatar({ user, overlapLocation, onPress }: RouteOver
             <Text style={[styles.initials, { color: colors.onPrimaryContainer }]}>{initials}</Text>
           </View>
         )}
-        <View style={[styles.pinBadge, { backgroundColor: colors.background, borderColor: colors.outline }]}>
-          <Ionicons name="location" size={10} color="#D27C5C" />
-        </View>
+        <Pressable
+          onPress={onMapPress ? handleMapPress : undefined}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          style={[styles.pinBadge, { backgroundColor: colors.background, borderColor: "rgba(210,124,92,0.3)" }]}
+        >
+          <PulsingRing />
+          <Ionicons name="map" size={10} color="#D27C5C" />
+        </Pressable>
       </View>
       <Text style={[styles.name, { color: colors.onBackground }]} numberOfLines={1}>
         {user?.name?.split(" ")[0] ?? ""}
@@ -95,17 +138,25 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: -2,
     right: -2,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 1,
+    borderWidth: 1.5,
+    shadowColor: "#D27C5C",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 2,
+    zIndex: 2,
+  },
+  pulseRing: {
+    position: "absolute",
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(210,124,92,0.3)",
   },
   name: {
     fontSize: 12,

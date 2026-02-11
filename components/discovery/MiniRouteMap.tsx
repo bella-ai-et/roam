@@ -158,7 +158,7 @@ export function MiniRouteMap({ route, isTopCard = false, onExpand }: MiniRouteMa
                   id: "their-route",
                   coordinates: mapData.polylineCoords,
                   color: MAP_COLORS.theirRoute,
-                  width: 3,
+                  width: 4,
                 },
               ]}
               markers={[

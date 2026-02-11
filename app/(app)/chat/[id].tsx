@@ -143,12 +143,19 @@ export default function ChatScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerBack}>
           <Ionicons name="chevron-back" size={24} color={colors.onBackground} />
         </Pressable>
-        <View style={styles.headerCenter}>
+        <Pressable
+          style={styles.headerCenter}
+          onPress={() => {
+            if (otherUser?._id) {
+              router.push(`/(app)/profile/${otherUser._id}` as never);
+            }
+          }}
+        >
           <HeaderAvatar user={otherUser} />
           <Text style={[styles.headerName, { color: colors.onBackground }]} numberOfLines={1}>
             {otherUser?.name ?? "Chat"}
           </Text>
-        </View>
+        </Pressable>
         <View style={styles.headerSpacer} />
       </View>
 
