@@ -10,6 +10,8 @@ import { Doc, Id } from "@/convex/_generated/dataModel";
 import { BUILD_CATEGORIES, CATEGORY_COLORS, VAN_TYPES } from "@/lib/constants";
 import { hapticButtonPress, hapticSelection } from "@/lib/haptics";
 import { useAppTheme } from "@/lib/theme";
+import { AnimatedScreen } from "@/components/ui/AnimatedScreen";
+import { CommunitySkeleton } from "@/components/ui/Skeleton";
 
 type PostListItem = {
   post: Doc<"posts">;
@@ -111,8 +113,25 @@ export default function CommunityScreen() {
   const cardBorder = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)";
   const separatorColor = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
   const mutedText = isDark ? "#94A3B8" : "#94A3B8";
+  const isLoading = posts === undefined;
+
+  if (isLoading) {
+    return (
+      <AnimatedScreen>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+          <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+            <Text style={[styles.headerTitle, { color: colors.onBackground }]}>Community</Text>
+          </View>
+          <View style={{ paddingTop: insets.top + 88 }}>
+            <CommunitySkeleton />
+          </View>
+        </View>
+      </AnimatedScreen>
+    );
+  }
 
   return (
+    <AnimatedScreen>
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Text style={[styles.headerTitle, { color: colors.onBackground }]}>Community</Text>
@@ -279,6 +298,7 @@ export default function CommunityScreen() {
         }}
       />
     </View>
+    </AnimatedScreen>
   );
 }
 

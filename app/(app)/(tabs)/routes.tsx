@@ -11,6 +11,8 @@ import { hapticButtonPress } from "@/lib/haptics";
 import { useAppTheme, AppColors } from "@/lib/theme";
 import { RouteOverlapAvatar } from "@/components/syncs/RouteOverlapAvatar";
 import { SyncConversationRow } from "@/components/syncs/SyncConversationRow";
+import { AnimatedScreen } from "@/components/ui/AnimatedScreen";
+import { SyncsSkeleton } from "@/components/ui/Skeleton";
 
 type SyncEntry = {
   match: Doc<"matches">;
@@ -59,6 +61,7 @@ export default function RoutesScreen() {
     currentUser?._id ? { userId: currentUser._id } : "skip"
   ) as RouteOverlap[] | undefined;
 
+  const isLoading = syncs === undefined && routeOverlaps === undefined;
   const allSyncs = useMemo(() => syncs ?? [], [syncs]);
   const overlaps = useMemo(() => (routeOverlaps ?? []).filter(Boolean) as NonNullable<RouteOverlap>[], [routeOverlaps]);
 
@@ -73,7 +76,25 @@ export default function RoutesScreen() {
     router.push(`/(app)/chat/${matchId}` as never);
   };
 
+  if (isLoading) {
+    return (
+      <AnimatedScreen>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+          <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+            <View>
+              <Text style={[styles.headerTitle, { color: colors.onBackground }]}>Syncs</Text>
+            </View>
+          </View>
+          <View style={{ paddingTop: insets.top + 100 }}>
+            <SyncsSkeleton />
+          </View>
+        </View>
+      </AnimatedScreen>
+    );
+  }
+
   return (
+    <AnimatedScreen>
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -166,6 +187,7 @@ export default function RoutesScreen() {
         )}
       </ScrollView>
     </View>
+    </AnimatedScreen>
   );
 }
 

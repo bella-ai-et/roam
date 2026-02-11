@@ -41,6 +41,8 @@ import {
 import { hapticButtonPress } from "@/lib/haptics";
 import { useSubscription } from "@/hooks/useSubscription";
 import { Paywall } from "@/components/Paywall";
+import { AnimatedScreen } from "@/components/ui/AnimatedScreen";
+import { DiscoverSkeleton } from "@/components/ui/Skeleton";
 
 type RouteMatch = {
   user: Doc<"users">;
@@ -322,6 +324,7 @@ export default function DiscoverScreen() {
   };
 
   const tabBarHeight = (Platform.OS === "android" ? 64 : 56) + insets.bottom;
+  const isLoading = matches === undefined;
 
   // ─── Pan gesture ───
   // activeOffsetX: don't claim the touch until 15px of horizontal movement.
@@ -407,9 +410,23 @@ export default function DiscoverScreen() {
     return visible.map((match, index) => ({ match, depth: index, isTop: index === 0 }));
   }, [visibleMatches]);
 
+  // ─── Render: Loading state ───
+  if (isLoading) {
+    return (
+      <AnimatedScreen>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+          <View style={{ paddingTop: insets.top + 16 }}>
+            <DiscoverSkeleton />
+          </View>
+        </View>
+      </AnimatedScreen>
+    );
+  }
+
   // ─── Render: Empty state ───
   if (!activeMatch) {
     return (
+      <AnimatedScreen>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.emptyState}>
           <Ionicons name="map-outline" size={64} color={colors.onSurfaceVariant} />
@@ -436,12 +453,14 @@ export default function DiscoverScreen() {
           onClose={handleCloseMatch}
         />
       </View>
+      </AnimatedScreen>
     );
   }
 
   // ─── Render: Expanded profile view ───
   if (expanded) {
     return (
+      <AnimatedScreen duration={160}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
           <Text style={[styles.headerTitle, { color: colors.onBackground }]}>Discover</Text>
@@ -473,12 +492,14 @@ export default function DiscoverScreen() {
           myPhotoId={currentUser?.photos?.[0]}
         />
       </View>
+      </AnimatedScreen>
     );
   }
 
   // ─── Render: Preview card stack (swipeable) ───
   // No header in preview — card fills the space between status bar and tab bar (matching design)
   return (
+    <AnimatedScreen>
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.content, { paddingTop: insets.top, paddingBottom: insets.bottom + 8 }]}>
         <GestureDetector gesture={panGesture}>
@@ -548,6 +569,7 @@ export default function DiscoverScreen() {
         myPhotoId={currentUser?.photos?.[0]}
       />
     </View>
+    </AnimatedScreen>
   );
 }
 
