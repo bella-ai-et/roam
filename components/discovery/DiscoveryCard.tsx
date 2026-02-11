@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
+  Linking,
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -21,6 +22,10 @@ import {
   INTERESTS,
   SCREEN_HEIGHT,
   TRAVEL_STYLES,
+  LOOKING_FOR_OPTIONS,
+  VAN_TYPES,
+  VAN_BUILD_STATUSES,
+  GENDERS,
 } from "@/lib/constants";
 import { JourneyStopsTimeline } from "./JourneyStopsTimeline";
 import { MiniRouteMap } from "./MiniRouteMap";
@@ -148,14 +153,19 @@ export type RouteMatch = {
     _id: Id<"users">;
     name: string;
     dateOfBirth?: number;
+    gender?: string;
     photos?: string[];
     bio?: string;
     interests?: string[];
+    lookingFor?: string[];
     travelStyles?: string[];
     lifestyleLabel?: string;
     vanVerified?: boolean;
+    vanType?: string;
+    vanBuildStatus?: string;
     vanModel?: string;
     nomadSinceYear?: number;
+    socialLinks?: { instagram?: string; tiktok?: string };
     currentRoute?: Array<{
       location: { latitude: number; longitude: number; name: string };
       arrivalDate: string;
@@ -507,6 +517,89 @@ export function ExpandedCard({ match, onCollapse, onLike, onReject, bottomInset 
           </View>
         )}
 
+        {/* ── Section: Looking for ── */}
+        {(user.lookingFor ?? []).length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.expandedSectionTitle, { color: colors.onSurfaceVariant }]}>LOOKING FOR</Text>
+            <View style={styles.lookingForRow}>
+              {(user.lookingFor ?? []).map((v) => {
+                const meta = LOOKING_FOR_OPTIONS.find((o) => o.value === v);
+                return (
+                  <View
+                    key={v}
+                    style={[styles.lookingForPill, { backgroundColor: isDark ? "rgba(232,155,116,0.15)" : "rgba(232,155,116,0.1)" }]}
+                  >
+                    <Text style={styles.lookingForEmoji}>{meta?.emoji ?? "💛"}</Text>
+                    <Text style={[styles.lookingForText, { color: AppColors.primary }]}>
+                      {meta?.label ?? v.replace("_", " ")}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* ── Section: About me (gender + van details) ── */}
+        {(user.gender || user.vanType || user.vanBuildStatus) && (
+          <View style={styles.section}>
+            <Text style={[styles.expandedSectionTitle, { color: colors.onSurfaceVariant }]}>ABOUT</Text>
+            <View style={[styles.aboutBox, { backgroundColor: isDark ? colors.surfaceVariant : "#f8fafc" }]}>
+              {user.gender && (
+                <View style={styles.aboutRow}>
+                  <Ionicons name="person-outline" size={16} color={colors.onSurfaceVariant} />
+                  <Text style={[styles.aboutText, { color: colors.onSurface }]}>
+                    {GENDERS.find((g) => g.value === user.gender)?.label ?? user.gender}
+                  </Text>
+                </View>
+              )}
+              {user.vanType && (
+                <View style={styles.aboutRow}>
+                  <Ionicons name="car-outline" size={16} color={colors.onSurfaceVariant} />
+                  <Text style={[styles.aboutText, { color: colors.onSurface }]}>
+                    {VAN_TYPES.find((t) => t.value === user.vanType)?.label ?? user.vanType}
+                  </Text>
+                </View>
+              )}
+              {user.vanBuildStatus && (
+                <View style={styles.aboutRow}>
+                  <Ionicons name="construct-outline" size={16} color={colors.onSurfaceVariant} />
+                  <Text style={[styles.aboutText, { color: colors.onSurface }]}>
+                    {VAN_BUILD_STATUSES.find((s) => s.value === user.vanBuildStatus)?.label ?? user.vanBuildStatus}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* ── Section: Socials ── */}
+        {(user.socialLinks?.instagram || user.socialLinks?.tiktok) && (
+          <View style={styles.section}>
+            <Text style={[styles.expandedSectionTitle, { color: colors.onSurfaceVariant }]}>SOCIALS</Text>
+            <View style={styles.socialsRow}>
+              {user.socialLinks.instagram && (
+                <Pressable
+                  style={[styles.socialChip, { backgroundColor: isDark ? colors.surfaceVariant : "#fdf2f8" }]}
+                  onPress={() => Linking.openURL(`https://instagram.com/${user.socialLinks!.instagram}`)}
+                >
+                  <Ionicons name="logo-instagram" size={16} color="#E1306C" />
+                  <Text style={[styles.socialHandle, { color: colors.onSurface }]}>@{user.socialLinks.instagram}</Text>
+                </Pressable>
+              )}
+              {user.socialLinks.tiktok && (
+                <Pressable
+                  style={[styles.socialChip, { backgroundColor: isDark ? colors.surfaceVariant : "#f0f0f0" }]}
+                  onPress={() => Linking.openURL(`https://tiktok.com/@${user.socialLinks!.tiktok}`)}
+                >
+                  <Ionicons name="logo-tiktok" size={16} color={isDark ? "#fff" : "#000"} />
+                  <Text style={[styles.socialHandle, { color: colors.onSurface }]}>@{user.socialLinks.tiktok}</Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        )}
+
         {/* ── Section: Travel styles ── */}
         {travelStyleLabels.length > 0 && (
           <View style={styles.section}>
@@ -810,5 +903,62 @@ const styles = StyleSheet.create({
   travelStyleText: {
     fontSize: 11,
     fontWeight: "500",
+  },
+  expandedSectionTitle: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    marginBottom: 12,
+  },
+  lookingForRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  lookingForPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  lookingForEmoji: {
+    fontSize: 14,
+  },
+  lookingForText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  aboutBox: {
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+  },
+  aboutRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  aboutText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  socialsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  socialChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+  },
+  socialHandle: {
+    fontSize: 13,
+    fontWeight: "600",
   },
 });

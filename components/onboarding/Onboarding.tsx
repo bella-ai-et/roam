@@ -26,9 +26,10 @@ import { LookingForStep } from "./steps/LookingForStep";
 import { TravelStyleStep } from "./steps/TravelStyleStep";
 import { InterestsStep } from "./steps/InterestsStep";
 import { VanStep } from "./steps/VanStep";
+import { SocialsStep } from "./steps/SocialsStep";
 import { ReviewStep } from "./steps/ReviewStep";
 
-const TOTAL_STEPS = 10; // 0-9
+const TOTAL_STEPS = 11; // 0-10
 const SCREEN_W = Dimensions.get("window").width;
 
 type SubmitState = "editing" | "saving" | "submitted";
@@ -82,6 +83,8 @@ export function Onboarding() {
   const [interests, setInterests] = useState<string[]>([]);
   const [vanType, setVanType] = useState<string | undefined>();
   const [vanBuildStatus, setVanBuildStatus] = useState<string | undefined>();
+  const [instagram, setInstagram] = useState("");
+  const [tiktok, setTiktok] = useState("");
   const [lifestyleLabel, setLifestyleLabel] = useState("");
 
   const [submitState, setSubmitState] = useState<SubmitState>("editing");
@@ -115,6 +118,12 @@ export function Onboarding() {
         vanVerified: false,
         travelStyles: travelStyles.length > 0 ? travelStyles : undefined,
         lifestyleLabel: lifestyleLabel.trim() || undefined,
+        socialLinks: (instagram || tiktok)
+          ? {
+              instagram: instagram || undefined,
+              tiktok: tiktok || undefined,
+            }
+          : undefined,
       });
       setCreatedProfileId(profileId as unknown as string);
       hapticSuccess();
@@ -230,6 +239,16 @@ export function Onboarding() {
           />
         );
       case 9:
+        return (
+          <SocialsStep
+            instagram={instagram}
+            tiktok={tiktok}
+            onChangeInstagram={setInstagram}
+            onChangeTiktok={setTiktok}
+            onNext={goNext}
+          />
+        );
+      case 10:
         return (
           <ReviewStep
             name={name}

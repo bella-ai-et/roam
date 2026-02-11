@@ -6,6 +6,7 @@ import {
   Pressable,
   ScrollView,
   Dimensions,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -16,9 +17,11 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useAppTheme, AppColors } from "@/lib/theme";
-import { INTERESTS, TRAVEL_STYLES } from "@/lib/constants";
+import { INTERESTS, TRAVEL_STYLES, LOOKING_FOR_OPTIONS, VAN_TYPES, VAN_BUILD_STATUSES, GENDERS } from "@/lib/constants";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { JourneyStopsTimeline } from "@/components/discovery/JourneyStopsTimeline";
 import { InlineRouteMap } from "@/components/discovery/InlineRouteMap";
+import { RouteComparisonModal } from "@/components/discovery/RouteComparisonModal";
 import { buildJourneyStops } from "@/components/discovery/discoveryUtils";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -109,7 +112,9 @@ export default function UserProfileScreen() {
   const userId = typeof params.userId === "string" ? (params.userId as Id<"users">) : undefined;
 
   const user = useQuery(api.users.getById, userId ? { userId } : "skip");
+  const { currentUser } = useCurrentUser();
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+  const [mapModalVisible, setMapModalVisible] = useState(false);
 
   if (!user) {
     return (
@@ -282,7 +287,93 @@ export default function UserProfileScreen() {
         {/* Route map */}
         {user.currentRoute && user.currentRoute.length > 0 && (
           <View style={styles.section}>
-            <InlineRouteMap route={user.currentRoute} />
+            <InlineRouteMap
+              route={user.currentRoute}
+              onExpand={() => setMapModalVisible(true)}
+            />
+          </View>
+        )}
+
+        {/* Looking for */}
+        {(user.lookingFor ?? []).length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>LOOKING FOR</Text>
+            <View style={styles.pillRow}>
+              {(user.lookingFor ?? []).map((v) => {
+                const meta = LOOKING_FOR_OPTIONS.find((o) => o.value === v);
+                return (
+                  <View
+                    key={v}
+                    style={[styles.lookingForPill, { backgroundColor: isDark ? "rgba(232,155,116,0.15)" : "rgba(232,155,116,0.1)" }]}
+                  >
+                    <Text style={styles.lookingForEmoji}>{meta?.emoji ?? "\uD83D\uDC9B"}</Text>
+                    <Text style={[styles.lookingForLabel, { color: AppColors.primary }]}>
+                      {meta?.label ?? v.replace("_", " ")}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* About (gender + van details) */}
+        {(user.gender || user.vanType || user.vanBuildStatus) && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>ABOUT</Text>
+            <View style={[styles.aboutBox, { backgroundColor: isDark ? colors.surfaceVariant : "#f8fafc" }]}>
+              {user.gender && (
+                <View style={styles.aboutRow}>
+                  <Ionicons name="person-outline" size={16} color={colors.onSurfaceVariant} />
+                  <Text style={[styles.aboutText, { color: colors.onSurface }]}>
+                    {GENDERS.find((g) => g.value === user.gender)?.label ?? user.gender}
+                  </Text>
+                </View>
+              )}
+              {user.vanType && (
+                <View style={styles.aboutRow}>
+                  <Ionicons name="car-outline" size={16} color={colors.onSurfaceVariant} />
+                  <Text style={[styles.aboutText, { color: colors.onSurface }]}>
+                    {VAN_TYPES.find((t) => t.value === user.vanType)?.label ?? user.vanType}
+                  </Text>
+                </View>
+              )}
+              {user.vanBuildStatus && (
+                <View style={styles.aboutRow}>
+                  <Ionicons name="construct-outline" size={16} color={colors.onSurfaceVariant} />
+                  <Text style={[styles.aboutText, { color: colors.onSurface }]}>
+                    {VAN_BUILD_STATUSES.find((s) => s.value === user.vanBuildStatus)?.label ?? user.vanBuildStatus}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Socials */}
+        {(user.socialLinks?.instagram || user.socialLinks?.tiktok) && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>SOCIALS</Text>
+            <View style={styles.pillRow}>
+              {user.socialLinks.instagram && (
+                <Pressable
+                  style={[styles.socialChip, { backgroundColor: isDark ? colors.surfaceVariant : "#fdf2f8" }]}
+                  onPress={() => Linking.openURL(`https://instagram.com/${user.socialLinks!.instagram}`)}
+                >
+                  <Ionicons name="logo-instagram" size={16} color="#E1306C" />
+                  <Text style={[styles.socialHandle, { color: colors.onSurface }]}>@{user.socialLinks.instagram}</Text>
+                </Pressable>
+              )}
+              {user.socialLinks.tiktok && (
+                <Pressable
+                  style={[styles.socialChip, { backgroundColor: isDark ? colors.surfaceVariant : "#f0f0f0" }]}
+                  onPress={() => Linking.openURL(`https://tiktok.com/@${user.socialLinks!.tiktok}`)}
+                >
+                  <Ionicons name="logo-tiktok" size={16} color={isDark ? "#fff" : "#000"} />
+                  <Text style={[styles.socialHandle, { color: colors.onSurface }]}>@{user.socialLinks.tiktok}</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         )}
 
@@ -306,6 +397,17 @@ export default function UserProfileScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Route comparison modal */}
+      <RouteComparisonModal
+        visible={mapModalVisible}
+        onClose={() => setMapModalVisible(false)}
+        theirRoute={user.currentRoute}
+        myRoute={currentUser?.currentRoute}
+        theirName={user.name}
+        theirPhotoId={user.photos?.[0]}
+        myPhotoId={currentUser?.photos?.[0]}
+      />
     </View>
   );
 }
@@ -466,6 +568,47 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   travelText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  lookingForPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  lookingForEmoji: {
+    fontSize: 14,
+  },
+  lookingForLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  aboutBox: {
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+  },
+  aboutRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  aboutText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  socialChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+  },
+  socialHandle: {
     fontSize: 13,
     fontWeight: "600",
   },

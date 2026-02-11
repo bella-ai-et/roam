@@ -30,6 +30,10 @@ export default defineSchema({
     }))),
     travelStyles: v.optional(v.array(v.string())),
     lifestyleLabel: v.optional(v.string()),
+    socialLinks: v.optional(v.object({
+      instagram: v.optional(v.string()),
+      tiktok: v.optional(v.string()),
+    })),
     onboardingComplete: v.optional(v.boolean()),
     applicationStatus: v.optional(v.string()), // "pending" | "approved" | "rejected"
     subscriptionTier: v.optional(v.string()), // "free" | "pro"

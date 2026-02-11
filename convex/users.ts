@@ -33,6 +33,10 @@ export const createProfile = mutation({
     pathVisibility: v.optional(v.string()),
     travelStyles: v.optional(v.array(v.string())),
     lifestyleLabel: v.optional(v.string()),
+    socialLinks: v.optional(v.object({
+      instagram: v.optional(v.string()),
+      tiktok: v.optional(v.string()),
+    })),
   }, 
   handler: async (ctx, args) => { 
     return await ctx.db.insert("users", { ...args, bio: undefined, onboardingComplete: false, applicationStatus: "pending" }); 
@@ -57,6 +61,10 @@ export const updateProfile = mutation({
     pathVisibility: v.optional(v.string()),
     travelStyles: v.optional(v.array(v.string())),
     lifestyleLabel: v.optional(v.string()),
+    socialLinks: v.optional(v.object({
+      instagram: v.optional(v.string()),
+      tiktok: v.optional(v.string()),
+    })),
   }, 
   handler: async (ctx, { userId, ...updates }) => { 
     const filtered = Object.fromEntries(Object.entries(updates).filter(([_, v]) => v !== undefined)); 
