@@ -1,5 +1,5 @@
 import { BlurView } from "expo-blur";
-import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import { GlassView, isLiquidGlassAvailable, GlassStyle } from "expo-glass-effect";
 import React from "react";
 import { StyleProp, View, ViewProps, ViewStyle } from "react-native";
 import { useAppTheme } from "@/lib/theme";
@@ -14,7 +14,7 @@ export const glassFallbackStyles = {
 
 interface AdaptiveGlassViewProps extends ViewProps {
   children: React.ReactNode;
-  glassEffectStyle?: "regular" | "prominent";
+  glassEffectStyle?: GlassStyle;
   tintColor?: string;
   fallbackColor?: string;
   fallbackStyle?: StyleProp<ViewStyle>;
