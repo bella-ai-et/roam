@@ -17,16 +17,25 @@ import { Image } from "expo-image";
 import { api } from "@/convex/_generated/api";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { AdaptiveGlassView } from "@/lib/glass";
-import { BUILD_CATEGORIES, VAN_TYPES } from "@/lib/constants";
-import { hapticButtonPress } from "@/lib/haptics";
+import { COMMUNITY_TOPICS, TOPIC_COLORS, SPOT_AMENITIES } from "@/lib/constants";
+import { hapticButtonPress, hapticSelection } from "@/lib/haptics";
 import { useAppTheme } from "@/lib/theme";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+
+// ─── Types ──────────────────────────────────────────────────────────
 
 type PostWithReplies = {
   post: Doc<"posts">;
   author: Doc<"users"> | null;
   replies: Array<{ reply: Doc<"replies">; author: Doc<"users"> | null }>;
+  reactionCounts: { helpful: number; been_there: number; save: number };
+  myReactions: string[];
+  rsvpCount: number;
+  rsvpUsers: Array<{ _id: string; name: string; photos: string[] } | null>;
+  myRsvp: boolean;
 };
+
+// ─── Helpers ────────────────────────────────────────────────────────
 
 function formatPostTime(timestamp: number) {
   const diffMinutes = Math.floor((Date.now() - timestamp) / 60000);
@@ -35,6 +44,13 @@ function formatPostTime(timestamp: number) {
   const diffHours = Math.floor(diffMinutes / 60);
   if (diffHours < 24) return `${diffHours}h ago`;
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(timestamp));
+}
+
+function formatMeetupDate(dateStr?: string) {
+  if (!dateStr) return "";
+  try {
+    return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date(dateStr));
+  } catch { return dateStr; }
 }
 
 function getInitials(name?: string) {
@@ -55,6 +71,20 @@ function normalizePhotoValue(value?: string) {
   return value.replace(/`/g, "").trim();
 }
 
+function getAuthorLocation(author: Doc<"users"> | null): string | null {
+  if (!author?.currentRoute?.length) return null;
+  return author.currentRoute[0].location.name;
+}
+
+function getNomadYears(author: Doc<"users"> | null): string | null {
+  if (!author?.nomadSinceYear) return null;
+  const years = new Date().getFullYear() - author.nomadSinceYear;
+  if (years < 1) return "New nomad";
+  return `${years}y on the road`;
+}
+
+// ─── Sub-components ─────────────────────────────────────────────────
+
 function Avatar({ user, size }: { user: Doc<"users"> | null; size: number }) {
   const { colors } = useAppTheme();
   const normalized = normalizePhotoValue(user?.photos?.[0]);
@@ -64,17 +94,17 @@ function Avatar({ user, size }: { user: Doc<"users"> | null; size: number }) {
     normalized && !remote ? { storageId: normalized as Id<"_storage"> } : "skip"
   );
 
+  const s = { width: size, height: size, borderRadius: size / 2 };
+
   if (remote && normalized) {
-    return <Image source={{ uri: normalized }} style={{ width: size, height: size, borderRadius: size / 2 }} contentFit="cover" />;
+    return <Image source={{ uri: normalized }} style={s} contentFit="cover" />;
   }
-
   if (photoUrl) {
-    return <Image source={{ uri: photoUrl }} style={{ width: size, height: size, borderRadius: size / 2 }} contentFit="cover" />;
+    return <Image source={{ uri: photoUrl }} style={s} contentFit="cover" />;
   }
-
   const initials = getInitials(user?.name);
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryContainer }}>
+    <View style={[s, { alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryContainer }]}>
       <Text style={{ fontSize: size * 0.42, fontWeight: "700", color: colors.onPrimaryContainer }}>{initials}</Text>
     </View>
   );
@@ -87,43 +117,47 @@ function PhotoPreview({ storageId, width, height }: { storageId: string; width: 
     api.files.getUrl,
     normalized && !remote ? { storageId: normalized as Id<"_storage"> } : "skip"
   );
-
   if (remote && normalized) {
     return <Image source={{ uri: normalized }} style={{ width, height, borderRadius: 12 }} contentFit="cover" />;
   }
-
   if (!photoUrl) {
     return <View style={{ width, height, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.08)" }} />;
   }
-
   return <Image source={{ uri: photoUrl }} style={{ width, height, borderRadius: 12 }} contentFit="cover" />;
 }
 
+// ─── Main screen ────────────────────────────────────────────────────
+
 export default function CommunityPostScreen() {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { currentUser } = useCurrentUser();
   const params = useLocalSearchParams<{ id?: string }>();
   const postId = typeof params.id === "string" ? (params.id as Id<"posts">) : undefined;
 
-  const postData = useQuery(api.posts.getPost, postId ? { postId } : "skip") as PostWithReplies | null | undefined;
-  const upvotePost = useMutation(api.posts.upvotePost);
+  const postData = useQuery(
+    api.posts.getPost,
+    postId ? { postId, userId: currentUser?._id } : "skip"
+  ) as PostWithReplies | null | undefined;
+
+  const toggleReaction = useMutation(api.posts.toggleReaction);
+  const toggleRsvp = useMutation(api.posts.toggleRsvp);
   const addReply = useMutation(api.posts.addReply);
   const upvoteReply = useMutation(api.posts.upvoteReply);
   const markHelpful = useMutation(api.posts.markHelpful);
 
-  const [postUpvoted, setPostUpvoted] = useState(false);
   const [replyUpvotes, setReplyUpvotes] = useState<Record<string, boolean>>({});
   const [replyText, setReplyText] = useState("");
 
   const canSend = replyText.trim().length > 0;
   const isPostAuthor = postData?.post.authorId === currentUser?._id;
 
-  const category = useMemo(
-    () => BUILD_CATEGORIES.find((entry) => entry.value === postData?.post.category),
+  const topic = useMemo(
+    () => COMMUNITY_TOPICS.find((entry) => entry.value === postData?.post.category),
     [postData?.post.category]
   );
+  const tc = postData ? TOPIC_COLORS[postData.post.category] : null;
 
   if (postData === undefined) {
     return (
@@ -141,8 +175,23 @@ export default function CommunityPostScreen() {
     );
   }
 
-  const postVan = postData.post.vanType ? VAN_TYPES.find((type) => type.value === postData.post.vanType) : null;
-  const postUpvoteCount = postData.post.upvotes + (postUpvoted ? 1 : 0);
+  const badgeBg = tc ? (isDark ? tc.darkBg : tc.bg) : colors.primaryContainer;
+  const badgeText = tc ? (isDark ? tc.darkText : tc.text) : colors.onPrimaryContainer;
+  const muted = isDark ? "#8E8A85" : "#6B6560";
+  const authorLocation = getAuthorLocation(postData.author);
+  const nomadTenure = getNomadYears(postData.author);
+
+  const handleReaction = (type: string) => {
+    if (!currentUser?._id || !postId) return;
+    hapticSelection();
+    toggleReaction({ postId, userId: currentUser._id, type });
+  };
+
+  const handleRsvp = () => {
+    if (!currentUser?._id || !postId) return;
+    hapticButtonPress();
+    toggleRsvp({ postId, userId: currentUser._id });
+  };
 
   return (
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.background }]} behavior="padding">
@@ -152,9 +201,9 @@ export default function CommunityPostScreen() {
             <Ionicons name="chevron-back" size={22} color={colors.onBackground} />
           </Pressable>
           <View style={styles.headerCenter}>
-            <View style={[styles.headerBadge, { backgroundColor: colors.primaryContainer }]}>
-              <Text style={[styles.headerBadgeText, { color: colors.onPrimaryContainer }]}>
-                {category?.emoji ?? "🛠️"} {category?.label ?? postData.post.category}
+            <View style={[styles.headerBadge, { backgroundColor: badgeBg }]}>
+              <Text style={[styles.headerBadgeText, { color: badgeText }]}>
+                {topic?.emoji ?? "❓"} {topic?.label ?? postData.post.category}
               </Text>
             </View>
           </View>
@@ -169,62 +218,162 @@ export default function CommunityPostScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.categoryBadge, { backgroundColor: colors.primaryContainer }]}>
-          <Text style={[styles.categoryText, { color: colors.onPrimaryContainer }]}>
-            {category?.emoji ?? "🛠️"} {category?.label ?? postData.post.category}
+        {/* Topic badge */}
+        <View style={[styles.topicBadge, { backgroundColor: badgeBg }]}>
+          <Text style={[styles.topicBadgeText, { color: badgeText }]}>
+            {topic?.emoji ?? "❓"} {topic?.label ?? postData.post.category}
           </Text>
         </View>
 
+        {/* Title */}
         <Text style={[styles.title, { color: colors.onBackground }]}>{postData.post.title}</Text>
 
+        {/* Author row — enriched */}
         <View style={styles.authorRow}>
-          <Avatar user={postData.author} size={32} />
-          <Text style={[styles.authorName, { color: colors.onBackground }]}>{postData.author?.name ?? "Unknown"}</Text>
-          {postVan && (
-            <View style={[styles.vanBadge, { backgroundColor: colors.surfaceVariant }]}>
-              <Text style={[styles.vanText, { color: colors.onSurfaceVariant }]}>
-                {postVan.emoji} {postVan.label}
+          <Avatar user={postData.author} size={36} />
+          <View style={{ flex: 1 }}>
+            <View style={styles.authorNameRow}>
+              <Text style={[styles.authorName, { color: colors.onBackground }]}>{postData.author?.name ?? "Unknown"}</Text>
+              {postData.author?.vanVerified && (
+                <Ionicons name="shield-checkmark" size={13} color={colors.like} style={{ marginLeft: 4 }} />
+              )}
+            </View>
+            <View style={styles.authorMetaRow}>
+              {authorLocation && (
+                <Text style={[styles.authorMeta, { color: muted }]} numberOfLines={1}>
+                  📍 {authorLocation}
+                </Text>
+              )}
+              {nomadTenure && (
+                <Text style={[styles.authorMeta, { color: muted }]}>
+                  {authorLocation ? " · " : ""}{nomadTenure}
+                </Text>
+              )}
+              <Text style={[styles.authorMeta, { color: muted }]}>
+                {(authorLocation || nomadTenure) ? " · " : ""}{formatPostTime(postData.post.createdAt)}
               </Text>
             </View>
-          )}
-          {postData.author?.vanVerified && (
-            <View style={styles.verifiedBadge}>
-              <Ionicons name="shield-checkmark" size={12} color={colors.like} />
-              <Text style={[styles.verifiedText, { color: colors.like }]}>✓</Text>
-            </View>
-          )}
-          <Text style={[styles.timeText, { color: colors.onSurfaceVariant }]}>
-            • {formatPostTime(postData.post.createdAt)}
-          </Text>
+          </View>
         </View>
 
+        {/* Spot review metadata */}
+        {postData.post.postType === "spot" && postData.post.location && (
+          <View style={styles.spotMeta}>
+            <View style={styles.spotLocationRow}>
+              <Ionicons name="location" size={16} color={colors.primary} />
+              <Text style={[styles.spotLocationName, { color: colors.primary }]}>{postData.post.location.name}</Text>
+            </View>
+            {postData.post.rating != null && postData.post.rating > 0 && (
+              <View style={styles.starRow}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Ionicons
+                    key={star}
+                    name={star <= (postData.post.rating ?? 0) ? "star" : "star-outline"}
+                    size={18}
+                    color={star <= (postData.post.rating ?? 0) ? "#F59E0B" : muted}
+                  />
+                ))}
+              </View>
+            )}
+            {postData.post.amenities && postData.post.amenities.length > 0 && (
+              <View style={styles.amenityRow}>
+                {postData.post.amenities.map((a) => {
+                  const amenity = SPOT_AMENITIES.find((s) => s.value === a);
+                  if (!amenity) return null;
+                  return (
+                    <View key={a} style={[styles.amenityChip, { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" }]}>
+                      <Text style={styles.amenityEmoji}>{amenity.emoji}</Text>
+                      <Text style={[styles.amenityLabel, { color: colors.onSurfaceVariant }]}>{amenity.label}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Meetup metadata */}
+        {postData.post.postType === "meetup" && (
+          <View style={styles.meetupMeta}>
+            {postData.post.meetupDate && (
+              <View style={[styles.meetupDateRow, { backgroundColor: isDark ? "rgba(245,158,11,0.08)" : "rgba(245,158,11,0.1)" }]}>
+                <Ionicons name="calendar" size={16} color="#D97706" />
+                <Text style={styles.meetupDateText}>{formatMeetupDate(postData.post.meetupDate)}</Text>
+              </View>
+            )}
+            {postData.post.location && (
+              <View style={styles.spotLocationRow}>
+                <Ionicons name="location" size={14} color={colors.primary} />
+                <Text style={[styles.spotLocationName, { color: colors.primary, fontSize: 14 }]}>{postData.post.location.name}</Text>
+              </View>
+            )}
+            <Pressable onPress={handleRsvp} style={[styles.rsvpButton, { backgroundColor: postData.myRsvp ? colors.primary : (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"), borderColor: postData.myRsvp ? colors.primary : colors.outline }]}>
+              <Ionicons name={postData.myRsvp ? "checkmark-circle" : "hand-right-outline"} size={18} color={postData.myRsvp ? "white" : colors.onBackground} />
+              <Text style={[styles.rsvpButtonText, { color: postData.myRsvp ? "white" : colors.onBackground }]}>
+                {postData.myRsvp ? "Going!" : "I'm in"}
+              </Text>
+              <Text style={[styles.rsvpCount, { color: postData.myRsvp ? "rgba(255,255,255,0.7)" : muted }]}>
+                {postData.rsvpCount} going{postData.post.maxAttendees ? ` / ${postData.post.maxAttendees}` : ""}
+              </Text>
+            </Pressable>
+            {postData.rsvpUsers.length > 0 && (
+              <View style={styles.rsvpAvatarRow}>
+                {postData.rsvpUsers.slice(0, 6).map((u, i) => u && (
+                  <View key={u._id} style={[styles.rsvpAvatarWrap, { marginLeft: i > 0 ? -6 : 0, zIndex: 6 - i }]}>
+                    <Avatar user={u as any} size={28} />
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Content body */}
         <Text style={[styles.contentText, { color: colors.onBackground }]}>{postData.post.content}</Text>
 
+        {/* Photos */}
         {postData.post.photos.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoScroll}>
             {postData.post.photos.map((photo) => (
-              <PhotoPreview key={photo} storageId={photo} width={200} height={140} />
+              <PhotoPreview key={photo} storageId={photo} width={220} height={160} />
             ))}
           </ScrollView>
         )}
 
-        <Pressable
-          onPress={() => {
-            if (postUpvoted) return;
-            hapticButtonPress();
-            setPostUpvoted(true);
-            upvotePost({ postId: postData.post._id });
-          }}
-          style={styles.upvoteButton}
-        >
-          <Ionicons
-            name={postUpvoted ? "arrow-up-circle" : "arrow-up"}
-            size={18}
-            color={postUpvoted ? colors.primary : colors.onSurfaceVariant}
-          />
-          <Text style={[styles.upvoteText, { color: colors.onSurfaceVariant }]}>{postUpvoteCount}</Text>
-        </Pressable>
+        {/* Reaction buttons */}
+        <View style={styles.reactionRow}>
+          {[
+            { type: "helpful", emoji: "🙏", label: "Helpful" },
+            { type: "been_there", emoji: "📍", label: "Been There" },
+            { type: "save", emoji: "🔖", label: "Save" },
+          ].map(({ type, emoji, label }) => {
+            const active = postData.myReactions.includes(type);
+            const count = postData.reactionCounts[type as keyof typeof postData.reactionCounts];
+            return (
+              <Pressable
+                key={type}
+                onPress={() => handleReaction(type)}
+                style={[
+                  styles.reactionButton,
+                  {
+                    backgroundColor: active ? (isDark ? "rgba(210,124,92,0.15)" : "rgba(210,124,92,0.1)") : (isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)"),
+                    borderColor: active ? colors.primary : "transparent",
+                  },
+                ]}
+              >
+                <Text style={styles.reactionEmoji}>{emoji}</Text>
+                <Text style={[styles.reactionLabel, { color: active ? colors.primary : colors.onSurfaceVariant }]}>
+                  {label}
+                </Text>
+                {count > 0 && (
+                  <Text style={[styles.reactionCount, { color: active ? colors.primary : muted }]}>{count}</Text>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
 
+        {/* Replies */}
         <Text style={[styles.replyTitle, { color: colors.onBackground }]}>
           Replies ({postData.replies.length})
         </Text>
@@ -237,8 +386,8 @@ export default function CommunityPostScreen() {
               <View style={styles.replyHeader}>
                 <Avatar user={author} size={24} />
                 <Text style={[styles.replyName, { color: colors.onBackground }]}>{author?.name ?? "Unknown"}</Text>
-                <Text style={[styles.timeText, { color: colors.onSurfaceVariant }]}>
-                  • {formatPostTime(reply.createdAt)}
+                <Text style={[styles.replyTime, { color: muted }]}>
+                  · {formatPostTime(reply.createdAt)}
                 </Text>
               </View>
               <Text style={[styles.replyContent, { color: colors.onBackground }]}>{reply.content}</Text>
@@ -289,6 +438,7 @@ export default function CommunityPostScreen() {
         })}
       </ScrollView>
 
+      {/* Reply input bar */}
       <AdaptiveGlassView
         style={[
           styles.inputBar,
@@ -320,6 +470,8 @@ export default function CommunityPostScreen() {
     </KeyboardAvoidingView>
   );
 }
+
+// ─── Styles ─────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -360,77 +512,178 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
   },
-  categoryBadge: {
+  topicBadge: {
     alignSelf: "flex-start",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     borderRadius: 20,
   },
-  categoryText: {
-    fontSize: 13,
-    fontWeight: "600",
+  topicBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
   title: {
-    fontSize: 22,
-    fontWeight: "700",
-    marginTop: 12,
+    fontSize: 24,
+    fontWeight: "800",
+    marginTop: 14,
+    lineHeight: 30,
+    letterSpacing: -0.3,
   },
   authorRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginTop: 12,
-    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 16,
   },
-  authorName: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  vanBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 14,
-  },
-  vanText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  verifiedBadge: {
+  authorNameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
   },
-  verifiedText: {
-    fontSize: 11,
+  authorName: {
+    fontSize: 15,
     fontWeight: "700",
   },
-  timeText: {
+  authorMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+    flexWrap: "wrap",
+  },
+  authorMeta: {
     fontSize: 12,
     fontWeight: "500",
   },
-  contentText: {
-    marginTop: 14,
+
+  // Spot review
+  spotMeta: {
+    marginTop: 16,
+    gap: 10,
+  },
+  spotLocationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  spotLocationName: {
     fontSize: 15,
-    lineHeight: 23,
+    fontWeight: "600",
+  },
+  starRow: {
+    flexDirection: "row",
+    gap: 3,
+  },
+  amenityRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  amenityChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+  },
+  amenityEmoji: {
+    fontSize: 13,
+  },
+  amenityLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+
+  // Meetup
+  meetupMeta: {
+    marginTop: 16,
+    gap: 10,
+  },
+  meetupDateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  meetupDateText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#D97706",
+  },
+  rsvpButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  rsvpButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  rsvpCount: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginLeft: "auto",
+  },
+  rsvpAvatarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  rsvpAvatarWrap: {
+    borderWidth: 2,
+    borderColor: "#1A1A1A",
+    borderRadius: 16,
+  },
+
+  // Content
+  contentText: {
+    marginTop: 16,
+    fontSize: 15,
+    lineHeight: 24,
   },
   photoScroll: {
     marginTop: 14,
     gap: 10,
   },
-  upvoteButton: {
+
+  // Reaction buttons
+  reactionRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 18,
+  },
+  reactionButton: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginTop: 14,
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
   },
-  upvoteText: {
-    fontSize: 14,
+  reactionEmoji: {
+    fontSize: 15,
+  },
+  reactionLabel: {
+    fontSize: 12,
     fontWeight: "600",
   },
+  reactionCount: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
+  // Replies
   replyTitle: {
-    marginTop: 22,
+    marginTop: 24,
     fontSize: 17,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   replyCard: {
     marginTop: 12,
@@ -444,12 +697,16 @@ const styles = StyleSheet.create({
   },
   replyName: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
+  },
+  replyTime: {
+    fontSize: 12,
+    fontWeight: "500",
   },
   replyContent: {
     fontSize: 14,
     marginTop: 6,
-    lineHeight: 20,
+    lineHeight: 21,
   },
   replyPhotoRow: {
     marginTop: 8,
@@ -483,6 +740,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
+
+  // Input bar
   inputBar: {
     paddingHorizontal: 16,
     borderTopWidth: 1,

@@ -29,8 +29,8 @@ export default function TabLayout() {
           />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="community">
-          <NativeTabs.Trigger.Label>Community</NativeTabs.Trigger.Label>
-          <NativeTabs.Trigger.Icon sf={{ default: "person.2", selected: "person.2.fill" }} md="group" />
+          <NativeTabs.Trigger.Label>Campfire</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon sf={{ default: "flame", selected: "flame.fill" }} md="local_fire_department" />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="profile">
           <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
@@ -89,9 +89,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="community"
         options={{
-          title: "Community",
+          title: "Campfire",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "people" : "people-outline"} size={26} color={color} />
+            <Ionicons name={focused ? "bonfire" : "bonfire-outline"} size={26} color={color} />
           ),
         }}
       />

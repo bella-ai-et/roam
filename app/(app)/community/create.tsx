@@ -10,31 +10,60 @@ import { api } from "@/convex/_generated/api";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { usePhotoPicker } from "@/hooks/usePhotoPicker";
 import { AdaptiveGlassView } from "@/lib/glass";
-import { BUILD_CATEGORIES, VAN_TYPES } from "@/lib/constants";
+import { COMMUNITY_TOPICS, POST_TYPES, SPOT_AMENITIES, TOPIC_COLORS } from "@/lib/constants";
 import { hapticButtonPress, hapticSelection, hapticSuccess } from "@/lib/haptics";
 import { useAppTheme } from "@/lib/theme";
 
-const MAX_PHOTOS = 3;
+const MAX_PHOTOS = 5;
+
+// ─── Post-type → default topic mapping ─────────────────────────────
+const TYPE_TO_TOPIC: Record<string, string> = {
+  question: "ask",
+  spot: "camp_spots",
+  tip: "local_tips",
+  meetup: "meetups",
+  showcase: "showcase",
+};
 
 export default function CreateCommunityPostScreen() {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { currentUser } = useCurrentUser();
   const { pickImage, uploadPhoto } = usePhotoPicker({ aspect: [4, 3], quality: 0.8 });
   const createPost = useMutation(api.posts.createPost);
 
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  // Core fields
+  const [selectedPostType, setSelectedPostType] = useState<string | null>(null);
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [selectedVanType, setSelectedVanType] = useState<string | null>(null);
   const [localPhotos, setLocalPhotos] = useState<Array<{ id: string; uri: string }>>([]);
   const [uploading, setUploading] = useState(false);
 
-  const canPost = useMemo(
-    () => title.trim().length > 0 && content.trim().length > 0 && !!selectedCategory && !uploading,
-    [title, content, selectedCategory, uploading]
-  );
+  // Spot review fields
+  const [locationName, setLocationName] = useState("");
+  const [rating, setRating] = useState(0);
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+
+  // Meetup fields
+  const [meetupDate, setMeetupDate] = useState("");
+  const [maxAttendees, setMaxAttendees] = useState("");
+
+  const canPost = useMemo(() => {
+    if (uploading || !selectedPostType || !title.trim()) return false;
+    if (selectedPostType === "tip") return title.trim().length > 0 && content.trim().length > 0;
+    if (selectedPostType === "spot") return title.trim().length > 0 && locationName.trim().length > 0;
+    if (selectedPostType === "meetup") return title.trim().length > 0 && meetupDate.trim().length > 0;
+    return title.trim().length > 0 && content.trim().length > 0;
+  }, [uploading, selectedPostType, title, content, locationName, meetupDate]);
+
+  const handleSelectPostType = (value: string) => {
+    hapticSelection();
+    setSelectedPostType(value);
+    const defaultTopic = TYPE_TO_TOPIC[value];
+    if (defaultTopic) setSelectedTopic(defaultTopic);
+  };
 
   const handleAddPhoto = async () => {
     if (localPhotos.length >= MAX_PHOTOS || uploading) return;
@@ -55,19 +84,46 @@ export default function CreateCommunityPostScreen() {
     hapticSelection();
   };
 
+  const toggleAmenity = (value: string) => {
+    hapticSelection();
+    setSelectedAmenities((prev) =>
+      prev.includes(value) ? prev.filter((a) => a !== value) : [...prev, value]
+    );
+  };
+
   const handlePost = async () => {
-    if (!canPost || !currentUser?._id || !selectedCategory) return;
+    if (!canPost || !currentUser?._id || !selectedPostType) return;
+    const topic = selectedTopic ?? TYPE_TO_TOPIC[selectedPostType] ?? "ask";
+
     await createPost({
       authorId: currentUser._id,
       title: title.trim(),
       content: content.trim(),
-      category: selectedCategory,
-      vanType: selectedVanType ?? undefined,
+      category: topic,
+      postType: selectedPostType,
       photos: localPhotos.map((photo) => photo.id),
+      ...(selectedPostType === "spot" && locationName.trim()
+        ? {
+            location: { latitude: 0, longitude: 0, name: locationName.trim() },
+            rating: rating > 0 ? rating : undefined,
+            amenities: selectedAmenities.length > 0 ? selectedAmenities : undefined,
+          }
+        : {}),
+      ...(selectedPostType === "meetup"
+        ? {
+            meetupDate: meetupDate.trim() || undefined,
+            maxAttendees: maxAttendees ? parseInt(maxAttendees, 10) : undefined,
+            ...(locationName.trim()
+              ? { location: { latitude: 0, longitude: 0, name: locationName.trim() } }
+              : {}),
+          }
+        : {}),
     });
     hapticSuccess();
     router.back();
   };
+
+  // ─── Render ────────────────────────────────────────────────────────
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -80,7 +136,7 @@ export default function CreateCommunityPostScreen() {
         }
         rightContent={
           <Pressable onPress={handlePost} disabled={!canPost}>
-            <Text style={[styles.postText, { color: canPost ? colors.primary : colors.onSurfaceVariant }]}>
+            <Text style={[styles.postBtn, { color: canPost ? colors.primary : colors.onSurfaceVariant }]}>
               Post
             </Text>
           </Pressable>
@@ -89,162 +145,332 @@ export default function CreateCommunityPostScreen() {
 
       <ScrollView
         contentContainerStyle={[
-          styles.content,
+          styles.scrollContent,
           { paddingTop: insets.top + 70, paddingBottom: insets.bottom + 80 },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Category</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryRow}
-        >
-          {BUILD_CATEGORIES.map((category) => {
-            const isSelected = selectedCategory === category.value;
+        {/* ── Step 1: Post type selector ───────────────────────── */}
+        <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>What are you sharing?</Text>
+        <View style={styles.typeGrid}>
+          {POST_TYPES.map((pt) => {
+            const isSelected = selectedPostType === pt.value;
             return (
               <Pressable
-                key={category.value}
-                onPress={() => {
-                  hapticSelection();
-                  setSelectedCategory(category.value);
-                }}
+                key={pt.value}
+                onPress={() => handleSelectPostType(pt.value)}
                 style={[
-                  styles.categoryChip,
-                  { backgroundColor: isSelected ? colors.primary : colors.surfaceVariant },
+                  styles.typeCard,
+                  {
+                    backgroundColor: isSelected ? colors.primary : (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.03)"),
+                    borderColor: isSelected ? colors.primary : (isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"),
+                  },
                 ]}
               >
-                <Text style={[styles.categoryText, { color: isSelected ? "white" : colors.onBackground }]}>
-                  {category.emoji} {category.label}
+                <Text style={styles.typeEmoji}>{pt.emoji}</Text>
+                <Text style={[styles.typeLabel, { color: isSelected ? "white" : colors.onBackground }]}>
+                  {pt.label}
+                </Text>
+                <Text style={[styles.typeDesc, { color: isSelected ? "rgba(255,255,255,0.7)" : colors.onSurfaceVariant }]}>
+                  {pt.description}
                 </Text>
               </Pressable>
             );
           })}
-        </ScrollView>
+        </View>
 
-        <GlassInput
-          label="Title"
-          placeholder="What's your question?"
-          value={title}
-          onChangeText={setTitle}
-        />
+        {/* Show rest of form only after post type is chosen */}
+        {selectedPostType && (
+          <>
+            {/* ── Topic selector ──────────────────────────────────── */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Topic</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+                {COMMUNITY_TOPICS.map((topic) => {
+                  const isSelected = selectedTopic === topic.value;
+                  const tc = TOPIC_COLORS[topic.value];
+                  const chipBg = isSelected
+                    ? (isDark ? tc?.darkText ?? colors.primary : tc?.text ?? colors.primary)
+                    : (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)");
+                  return (
+                    <Pressable
+                      key={topic.value}
+                      onPress={() => { hapticSelection(); setSelectedTopic(topic.value); }}
+                      style={[styles.chip, { backgroundColor: chipBg }]}
+                    >
+                      <Text style={[styles.chipText, { color: isSelected ? "white" : colors.onBackground }]}>
+                        {topic.emoji} {topic.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Content</Text>
-          <AdaptiveGlassView style={styles.contentBox}>
-            <TextInput
-              value={content}
-              onChangeText={setContent}
-              placeholder="Describe your question or share your experience..."
-              placeholderTextColor={colors.onSurfaceVariant}
-              style={[styles.contentInput, { color: colors.onBackground }]}
-              multiline
-              maxLength={2000}
+            {/* ── Title ───────────────────────────────────────────── */}
+            <GlassInput
+              label="Title"
+              placeholder={
+                selectedPostType === "spot"
+                  ? "Name this spot..."
+                  : selectedPostType === "tip"
+                    ? "What's the tip?"
+                    : selectedPostType === "meetup"
+                      ? "What's the plan?"
+                      : "What's on your mind?"
+              }
+              value={title}
+              onChangeText={setTitle}
             />
-          </AdaptiveGlassView>
-        </View>
 
-        <View style={styles.section}>
-          <View style={styles.photoHeader}>
-            <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Photos</Text>
-            <Text style={[styles.photoCount, { color: colors.onSurfaceVariant }]}>
-              {localPhotos.length} / {MAX_PHOTOS}
-            </Text>
-          </View>
-          <Pressable
-            onPress={() => {
-              hapticButtonPress();
-              handleAddPhoto();
-            }}
-            style={[styles.addPhotoButton, { borderColor: colors.outline }]}
-          >
-            <Ionicons name="images-outline" size={18} color={colors.onSurfaceVariant} />
-            <Text style={[styles.addPhotoText, { color: colors.onSurfaceVariant }]}>Add Photos</Text>
-          </Pressable>
-
-          {localPhotos.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
-              {localPhotos.map((photo, index) => (
-                <Pressable key={photo.id} onPress={() => handleRemovePhoto(index)} style={styles.photoSlot}>
-                  <Image source={{ uri: photo.uri }} style={styles.photo} contentFit="cover" />
-                  <View style={styles.removeBadge}>
-                    <Ionicons name="close" size={12} color="white" />
+            {/* ── Spot review: Location + Rating + Amenities ──────── */}
+            {selectedPostType === "spot" && (
+              <>
+                <View style={styles.section}>
+                  <GlassInput
+                    label="Location name"
+                    placeholder="e.g. Praia do Guincho, Portugal"
+                    value={locationName}
+                    onChangeText={setLocationName}
+                  />
+                </View>
+                <View style={styles.section}>
+                  <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Rating</Text>
+                  <View style={styles.starRow}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Pressable key={star} onPress={() => { hapticSelection(); setRating(star); }}>
+                        <Ionicons
+                          name={star <= rating ? "star" : "star-outline"}
+                          size={28}
+                          color={star <= rating ? "#F59E0B" : colors.onSurfaceVariant}
+                        />
+                      </Pressable>
+                    ))}
                   </View>
-                </Pressable>
-              ))}
-            </ScrollView>
-          )}
-        </View>
+                </View>
+                <View style={styles.section}>
+                  <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Amenities</Text>
+                  <View style={styles.amenityGrid}>
+                    {SPOT_AMENITIES.map((amenity) => {
+                      const isSelected = selectedAmenities.includes(amenity.value);
+                      return (
+                        <Pressable
+                          key={amenity.value}
+                          onPress={() => toggleAmenity(amenity.value)}
+                          style={[
+                            styles.amenityChip,
+                            {
+                              backgroundColor: isSelected ? colors.primary : (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.03)"),
+                              borderColor: isSelected ? colors.primary : (isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"),
+                            },
+                          ]}
+                        >
+                          <Text style={styles.amenityEmoji}>{amenity.emoji}</Text>
+                          <Text style={[styles.amenityLabel, { color: isSelected ? "white" : colors.onBackground }]}>
+                            {amenity.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              </>
+            )}
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Van Type (optional)</Text>
-          <View style={styles.vanRow}>
-            {VAN_TYPES.map((type) => {
-              const isSelected = selectedVanType === type.value;
-              return (
-                <Pressable
-                  key={type.value}
-                  onPress={() => {
-                    hapticSelection();
-                    setSelectedVanType(type.value);
-                  }}
-                  style={[
-                    styles.vanChip,
-                    { backgroundColor: isSelected ? colors.primary : colors.surfaceVariant },
-                  ]}
-                >
-                  <Text style={[styles.vanText, { color: isSelected ? "white" : colors.onBackground }]}>
-                    {type.emoji} {type.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
+            {/* ── Meetup: Location + Date + Max Attendees ─────────── */}
+            {selectedPostType === "meetup" && (
+              <>
+                <View style={styles.section}>
+                  <GlassInput
+                    label="Location"
+                    placeholder="e.g. Café XYZ, Lisbon"
+                    value={locationName}
+                    onChangeText={setLocationName}
+                  />
+                </View>
+                <View style={styles.section}>
+                  <GlassInput
+                    label="Date"
+                    placeholder="e.g. 2026-03-15"
+                    value={meetupDate}
+                    onChangeText={setMeetupDate}
+                  />
+                </View>
+                <View style={styles.section}>
+                  <GlassInput
+                    label="Max attendees (optional)"
+                    placeholder="e.g. 20"
+                    value={maxAttendees}
+                    onChangeText={setMaxAttendees}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </>
+            )}
+
+            {/* ── Content ─────────────────────────────────────────── */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>
+                {selectedPostType === "spot" ? "Review" : selectedPostType === "tip" ? "Details" : "Content"}
+              </Text>
+              <AdaptiveGlassView style={styles.contentBox}>
+                <TextInput
+                  value={content}
+                  onChangeText={setContent}
+                  placeholder={
+                    selectedPostType === "spot"
+                      ? "Share your experience at this spot..."
+                      : selectedPostType === "tip"
+                        ? "Share the tip in detail..."
+                        : selectedPostType === "meetup"
+                          ? "What should people know about this meetup?"
+                          : "Describe your question or share your experience..."
+                  }
+                  placeholderTextColor={colors.onSurfaceVariant}
+                  style={[styles.contentInput, { color: colors.onBackground }]}
+                  multiline
+                  maxLength={2000}
+                />
+              </AdaptiveGlassView>
+            </View>
+
+            {/* ── Photos ──────────────────────────────────────────── */}
+            <View style={styles.section}>
+              <View style={styles.photoHeader}>
+                <Text style={[styles.sectionLabel, { color: colors.onBackground }]}>Photos</Text>
+                <Text style={[styles.photoCount, { color: colors.onSurfaceVariant }]}>
+                  {localPhotos.length} / {MAX_PHOTOS}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => { hapticButtonPress(); handleAddPhoto(); }}
+                style={[styles.addPhotoButton, { borderColor: colors.outline }]}
+              >
+                <Ionicons name="images-outline" size={18} color={colors.onSurfaceVariant} />
+                <Text style={[styles.addPhotoText, { color: colors.onSurfaceVariant }]}>Add Photos</Text>
+              </Pressable>
+              {localPhotos.length > 0 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
+                  {localPhotos.map((photo, index) => (
+                    <Pressable key={photo.id} onPress={() => handleRemovePhoto(index)} style={styles.photoSlot}>
+                      <Image source={{ uri: photo.uri }} style={styles.photo} contentFit="cover" />
+                      <View style={styles.removeBadge}>
+                        <Ionicons name="close" size={12} color="white" />
+                      </View>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
 }
 
+// ─── Styles ─────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: {
+  scrollContent: {
     paddingHorizontal: 20,
   },
   section: {
-    marginTop: 16,
+    marginTop: 18,
   },
   sectionLabel: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     marginBottom: 10,
   },
-  postText: {
+  postBtn: {
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: "700",
   },
-  categoryRow: {
+
+  // Post type grid
+  typeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  typeCard: {
+    width: "47%",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+  },
+  typeEmoji: {
+    fontSize: 22,
+    marginBottom: 6,
+  },
+  typeLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  typeDesc: {
+    fontSize: 11,
+    fontWeight: "500",
+    marginTop: 2,
+  },
+
+  // Chip row
+  chipRow: {
     gap: 8,
-    paddingBottom: 12,
   },
-  categoryChip: {
+  chip: {
     paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 50,
+    paddingVertical: 7,
+    borderRadius: 20,
   },
-  categoryText: {
+  chipText: {
     fontSize: 13,
     fontWeight: "600",
   },
+
+  // Content
   contentBox: {
     borderRadius: 16,
     padding: 14,
   },
   contentInput: {
-    minHeight: 150,
+    minHeight: 120,
     fontSize: 15,
     lineHeight: 22,
+    textAlignVertical: "top",
   },
+
+  // Star rating
+  starRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+
+  // Amenity grid
+  amenityGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  amenityChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  amenityEmoji: {
+    fontSize: 14,
+  },
+  amenityLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  // Photos
   photoHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -292,19 +518,5 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.6)",
     alignItems: "center",
     justifyContent: "center",
-  },
-  vanRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  vanChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  vanText: {
-    fontSize: 12,
-    fontWeight: "600",
   },
 });

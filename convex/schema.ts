@@ -69,13 +69,26 @@ export default defineSchema({
     title: v.string(),
     content: v.string(),
     category: v.string(),
+    postType: v.optional(v.string()), // "question" | "spot" | "tip" | "meetup" | "showcase"
     vanType: v.optional(v.string()),
     photos: v.array(v.string()),
     upvotes: v.number(),
     createdAt: v.number(),
+    // Spot review fields
+    location: v.optional(v.object({
+      latitude: v.number(),
+      longitude: v.number(),
+      name: v.string(),
+    })),
+    rating: v.optional(v.number()), // 1-5
+    amenities: v.optional(v.array(v.string())), // ["wifi","water","power","shade","cell","showers","pets"]
+    // Meetup fields
+    meetupDate: v.optional(v.string()),
+    maxAttendees: v.optional(v.number()),
   })
     .index("by_category", ["category"])
-    .index("by_author", ["authorId"]),
+    .index("by_author", ["authorId"])
+    .index("by_postType", ["postType"]),
   replies: defineTable({
     postId: v.id("posts"),
     authorId: v.id("users"),
@@ -86,4 +99,21 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_post", ["postId"]),
+  reactions: defineTable({
+    postId: v.id("posts"),
+    userId: v.id("users"),
+    type: v.string(), // "helpful" | "been_there" | "save"
+    createdAt: v.number(),
+  })
+    .index("by_post", ["postId"])
+    .index("by_user", ["userId"])
+    .index("by_post_user", ["postId", "userId"]),
+  rsvps: defineTable({
+    postId: v.id("posts"),
+    userId: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_post", ["postId"])
+    .index("by_user", ["userId"])
+    .index("by_post_user", ["postId", "userId"]),
 });

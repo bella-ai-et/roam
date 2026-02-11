@@ -92,18 +92,42 @@ export const GENDERS = [
 ] as const;
 export type Gender = (typeof GENDERS)[number]["value"];
 
-export const BUILD_CATEGORIES = [
-  { value: "electrical", label: "Electrical", emoji: "⚡" },
-  { value: "plumbing", label: "Plumbing", emoji: "💧" },
-  { value: "solar", label: "Solar", emoji: "☀️" },
-  { value: "interior", label: "Interior", emoji: "🛋️" },
-  { value: "mechanical", label: "Mechanical", emoji: "🔧" },
-  { value: "insulation", label: "Insulation", emoji: "🧱" },
-  { value: "ventilation", label: "Ventilation", emoji: "💨" },
-  { value: "showcase", label: "Showcase", emoji: "✨" },
+export const COMMUNITY_TOPICS = [
+  { value: "camp_spots", label: "Camp Spots", emoji: "⛺" },
+  { value: "road_intel", label: "Road Intel", emoji: "🛣️" },
+  { value: "van_build", label: "Van Build", emoji: "�" },
   { value: "remote_work", label: "Remote Work", emoji: "💻" },
+  { value: "local_tips", label: "Local Tips", emoji: "�" },
+  { value: "meetups", label: "Meetups", emoji: "🤝" },
+  { value: "gear_trade", label: "Gear & Trade", emoji: "🎒" },
+  { value: "showcase", label: "Showcase", emoji: "✨" },
+  { value: "ask", label: "Ask", emoji: "❓" },
 ] as const;
-export type BuildCategory = (typeof BUILD_CATEGORIES)[number]["value"];
+export type CommunityTopic = (typeof COMMUNITY_TOPICS)[number]["value"];
+
+export const POST_TYPES = [
+  { value: "question", label: "Question", emoji: "❓", description: "Ask the community" },
+  { value: "spot", label: "Spot Review", emoji: "⛺", description: "Share a camp spot or place" },
+  { value: "tip", label: "Quick Tip", emoji: "💡", description: "Share a short pro-tip" },
+  { value: "meetup", label: "Meetup", emoji: "🤝", description: "Organize a gathering" },
+  { value: "showcase", label: "Showcase", emoji: "✨", description: "Show off your build or travels" },
+] as const;
+export type PostType = (typeof POST_TYPES)[number]["value"];
+
+export const SPOT_AMENITIES = [
+  { value: "wifi", label: "WiFi", emoji: "📶" },
+  { value: "water", label: "Water", emoji: "💧" },
+  { value: "power", label: "Power", emoji: "🔌" },
+  { value: "shade", label: "Shade", emoji: "🌳" },
+  { value: "cell", label: "Cell Signal", emoji: "📱" },
+  { value: "showers", label: "Showers", emoji: "🚿" },
+  { value: "pets", label: "Pet Friendly", emoji: "�" },
+  { value: "quiet", label: "Quiet", emoji: "🤫" },
+] as const;
+export type SpotAmenity = (typeof SPOT_AMENITIES)[number]["value"];
+
+/** @deprecated Use COMMUNITY_TOPICS — kept for backward compat with old posts */
+export const BUILD_CATEGORIES = COMMUNITY_TOPICS;
 
 /** Vehicle icon mapping for Syncs screen – maps vanType to Ionicons */
 export const VEHICLE_ICONS: Record<string, { icon: string; label: string }> = {
@@ -144,14 +168,17 @@ export function getPlanLimits(tier: PlanTier) {
   return tier === "pro" ? PRO_PLAN : FREE_PLAN;
 }
 
-export const CATEGORY_COLORS: Record<string, { bg: string; darkBg: string; text: string; darkText: string }> = {
-  electrical: { bg: "#FFFBEB", darkBg: "rgba(245,158,11,0.12)", text: "#D97706", darkText: "#FBBF24" },
-  plumbing:   { bg: "#EFF6FF", darkBg: "rgba(59,130,246,0.12)", text: "#2563EB", darkText: "#60A5FA" },
-  solar:      { bg: "#FFF7ED", darkBg: "rgba(249,115,22,0.12)", text: "#EA580C", darkText: "#FB923C" },
-  remote_work:{ bg: "#ECFDF5", darkBg: "rgba(16,185,129,0.12)", text: "#059669", darkText: "#34D399" },
-  interior:   { bg: "#FDF2F8", darkBg: "rgba(236,72,153,0.12)", text: "#DB2777", darkText: "#F472B6" },
-  mechanical: { bg: "#F5F3FF", darkBg: "rgba(139,92,246,0.12)", text: "#7C3AED", darkText: "#A78BFA" },
-  insulation: { bg: "#FEF2F2", darkBg: "rgba(239,68,68,0.12)",  text: "#DC2626", darkText: "#F87171" },
-  ventilation:{ bg: "#F0F9FF", darkBg: "rgba(14,165,233,0.12)", text: "#0284C7", darkText: "#38BDF8" },
+export const TOPIC_COLORS: Record<string, { bg: string; darkBg: string; text: string; darkText: string }> = {
+  camp_spots: { bg: "#ECFDF5", darkBg: "rgba(16,185,129,0.12)", text: "#059669", darkText: "#34D399" },
+  road_intel: { bg: "#FFF7ED", darkBg: "rgba(249,115,22,0.12)", text: "#EA580C", darkText: "#FB923C" },
+  van_build:  { bg: "#F5F3FF", darkBg: "rgba(139,92,246,0.12)", text: "#7C3AED", darkText: "#A78BFA" },
+  remote_work:{ bg: "#EFF6FF", darkBg: "rgba(59,130,246,0.12)", text: "#2563EB", darkText: "#60A5FA" },
+  local_tips: { bg: "#FDF2F8", darkBg: "rgba(236,72,153,0.12)", text: "#DB2777", darkText: "#F472B6" },
+  meetups:    { bg: "#FFFBEB", darkBg: "rgba(245,158,11,0.12)", text: "#D97706", darkText: "#FBBF24" },
+  gear_trade: { bg: "#FEF2F2", darkBg: "rgba(239,68,68,0.12)",  text: "#DC2626", darkText: "#F87171" },
   showcase:   { bg: "#FFFBEB", darkBg: "rgba(234,179,8,0.12)",  text: "#CA8A04", darkText: "#FACC15" },
+  ask:        { bg: "#F0F9FF", darkBg: "rgba(14,165,233,0.12)", text: "#0284C7", darkText: "#38BDF8" },
 };
+
+/** @deprecated Use TOPIC_COLORS */
+export const CATEGORY_COLORS = TOPIC_COLORS;
