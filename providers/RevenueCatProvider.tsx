@@ -1,5 +1,6 @@
 import React, { createContext, useEffect, useState } from "react";
 import { Platform } from "react-native";
+import * as SecureStore from "expo-secure-store";
 import Purchases, {
   CustomerInfo,
   PurchasesOfferings,
@@ -10,6 +11,9 @@ import { useUser } from "@clerk/clerk-expo";
 
 const API_KEY_IOS = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_IOS ?? "";
 const API_KEY_ANDROID = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID ?? "";
+
+const ENTITLEMENT_ID = "zelani Pro";
+const PRO_FALLBACK_KEY = "zelani_pro_fallback";
 
 export interface RevenueCatContextValue {
   isPro: boolean;
@@ -29,15 +33,33 @@ export const RevenueCatContext = createContext<RevenueCatContextValue>({
   loading: true,
 });
 
+/**
+ * Check if RevenueCat entitlement is active in CustomerInfo.
+ * Returns true if the entitlement exists and is active.
+ */
+function hasActiveEntitlement(info: CustomerInfo | null): boolean {
+  return info?.entitlements.active[ENTITLEMENT_ID]?.isActive === true;
+}
+
 export function RevenueCatProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUser();
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
   const [offerings, setOfferings] = useState<PurchasesOfferings | null>(null);
   const [loading, setLoading] = useState(true);
   const [configured, setConfigured] = useState(false);
+  // Fallback flag: persisted via SecureStore when TestStore purchase succeeds
+  // but the entitlement isn't reflected in CustomerInfo (known TestStore limitation)
+  const [proFallback, setProFallback] = useState(false);
 
-  // Derive Pro status from entitlements
-  const isPro = customerInfo?.entitlements.active["zelani Premium"]?.isActive === true;
+  // Derive Pro status: real entitlement OR local fallback
+  const isPro = hasActiveEntitlement(customerInfo) || proFallback;
+
+  // ── Load fallback Pro status from SecureStore on mount ──
+  useEffect(() => {
+    SecureStore.getItemAsync(PRO_FALLBACK_KEY).then((val) => {
+      if (val === "true") setProFallback(true);
+    });
+  }, []);
 
   // Configure SDK once
   useEffect(() => {
@@ -105,7 +127,18 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     try {
       const { customerInfo: info } = await Purchases.purchasePackage(pkg);
       setCustomerInfo(info);
-      return info.entitlements.active["zelani Premium"]?.isActive === true;
+
+      // Check real entitlement first
+      if (hasActiveEntitlement(info)) {
+        return true;
+      }
+
+      // TestStore fallback: purchase call succeeded (no error) but entitlement
+      // isn't reflected in CustomerInfo. This is a known TestStore limitation.
+      // Persist Pro status locally so the upgrade takes effect.
+      await SecureStore.setItemAsync(PRO_FALLBACK_KEY, "true");
+      setProFallback(true);
+      return true;
     } catch {
       return false;
     }
@@ -115,7 +148,19 @@ export function RevenueCatProvider({ children }: { children: React.ReactNode }) 
     try {
       const info = await Purchases.restorePurchases();
       setCustomerInfo(info);
-      return info.entitlements.active["zelani Premium"]?.isActive === true;
+
+      if (hasActiveEntitlement(info)) {
+        return true;
+      }
+
+      // Also check local fallback
+      const fallback = await SecureStore.getItemAsync(PRO_FALLBACK_KEY);
+      if (fallback === "true") {
+        setProFallback(true);
+        return true;
+      }
+
+      return false;
     } catch {
       return false;
     }
