@@ -34,7 +34,7 @@ export const recordSwipe = mutation({
         }
 
         if (usedToday >= FREE_DAILY_LIKES) {
-          throw new Error("DAILY_LIKES_LIMIT");
+          return { matched: false, matchId: null, limitReached: true };
         }
 
         // Increment counter

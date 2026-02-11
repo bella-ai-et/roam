@@ -225,12 +225,7 @@ export default function DiscoverScreen() {
         action,
       })
         .then((result) => {
-          if (result?.matched) {
-            setMatchState({ user: match.user, matchId: result.matchId as Id<"matches"> });
-          }
-        })
-        .catch((err: any) => {
-          if (err?.message?.includes("DAILY_LIKES_LIMIT")) {
+          if (result?.limitReached) {
             // Revert: remove from swiped set so the card reappears
             cancelAnimation(translateX);
             translateX.value = 0;
@@ -240,6 +235,10 @@ export default function DiscoverScreen() {
               return next;
             });
             setLikesPaywallVisible(true);
+            return;
+          }
+          if (result?.matched) {
+            setMatchState({ user: match.user, matchId: result.matchId as Id<"matches"> });
           }
         });
     },

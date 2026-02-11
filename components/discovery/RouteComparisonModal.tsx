@@ -60,6 +60,9 @@ interface RouteComparisonModalProps {
 
 type HighlightedRoute = "their" | "my" | "overlap" | null;
 
+/** 1x1 transparent GIF — valid image source that avoids Glide "null model" crashes */
+const EMPTY_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
 function isRemoteUrl(value?: string) {
   if (!value) return false;
   const t = value.trim();
@@ -121,8 +124,8 @@ export function RouteComparisonModal({
   const myPhotoUrl = myPhotoRemote ? myPhotoNorm : myPhotoConvexUrl;
 
   // Load profile photos as ImageRef for marker icons (expo-image caching)
-  const theirMarkerIcon = useImage(theirPhotoUrl ?? "", { maxWidth: 56, maxHeight: 56 });
-  const myMarkerIcon = useImage(myPhotoUrl ?? "", { maxWidth: 56, maxHeight: 56 });
+  const theirMarkerIcon = useImage(theirPhotoUrl || EMPTY_PIXEL, { maxWidth: 56, maxHeight: 56 });
+  const myMarkerIcon = useImage(myPhotoUrl || EMPTY_PIXEL, { maxWidth: 56, maxHeight: 56 });
 
   // Animation shared values
   const backdropOpacity = useSharedValue(0);
@@ -257,7 +260,7 @@ export function RouteComparisonModal({
         title: theirMapData.origin.name,
         snippet: theirName ? `${theirName}'s start` : "Their start",
         showCallout: true,
-        ...(theirMarkerIcon ? { icon: theirMarkerIcon } : {}),
+        ...(theirPhotoUrl && theirMarkerIcon ? { icon: theirMarkerIcon } : {}),
       });
       m.push({
         id: "their-dest",
@@ -267,7 +270,7 @@ export function RouteComparisonModal({
         },
         title: theirMapData.destination.name,
         snippet: theirName ? `${theirName}'s destination` : "Their destination",
-        ...(theirMarkerIcon ? { icon: theirMarkerIcon } : {}),
+        ...(theirPhotoUrl && theirMarkerIcon ? { icon: theirMarkerIcon } : {}),
       });
     }
 
@@ -281,7 +284,7 @@ export function RouteComparisonModal({
         title: myMapData.origin.name,
         snippet: "Your start",
         showCallout: true,
-        ...(myMarkerIcon ? { icon: myMarkerIcon } : {}),
+        ...(myPhotoUrl && myMarkerIcon ? { icon: myMarkerIcon } : {}),
       });
       m.push({
         id: "my-dest",
@@ -291,7 +294,7 @@ export function RouteComparisonModal({
         },
         title: myMapData.destination.name,
         snippet: "Your destination",
-        ...(myMarkerIcon ? { icon: myMarkerIcon } : {}),
+        ...(myPhotoUrl && myMarkerIcon ? { icon: myMarkerIcon } : {}),
       });
     }
 
